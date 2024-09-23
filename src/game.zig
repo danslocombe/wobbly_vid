@@ -16,6 +16,7 @@ const camera_min_y = -100;
 const camera_max_y = 500;
 
 pub var g_draw_wireframe = false;
+pub var g_shader_noise_dump: f32 = 0.0;
 
 pub var particle_frames: []rl.Texture = &.{};
 
@@ -33,7 +34,24 @@ pub const Game = struct {
     // ticking and drawing.
     particles_dead: std.bit_set.DynamicBitSet,
 
-    scene_perlin: ScenePerlin = .{},
+    scene_1: ScenePerlin1d,
+
+    pub fn init() Game {
+        var rand = FroggyRand.init(0);
+        _ = rand;
+
+        var scene = ScenePerlin1d{
+            .state = ScenePerlin1DState{
+                .Intro = .{ .t = 0 },
+            },
+        };
+
+        return Game{
+            .scene_1 = scene,
+            .particles = std.ArrayList(Particle).init(alloc.gpa.allocator()),
+            .particles_dead = std.bit_set.DynamicBitSet.initEmpty(alloc.gpa.allocator(), 4) catch unreachable,
+        };
+    }
 
     pub fn tick(self: *Game) void {
         self.t += 1;
@@ -42,7 +60,7 @@ pub const Game = struct {
             // TODO resett
         }
 
-        self.scene_perlin.tick();
+        self.scene_1.tick();
 
         // Update camera
         {
@@ -54,8 +72,8 @@ pub const Game = struct {
             //var k = 1500 / (1 + dt);
             //var k = 100 * dt_norm;
             const k = 100;
-            self.camera_x = utils.ease(self.camera_x, target_camera_x, k);
-            self.camera_y = utils.ease(self.camera_y, target_camera_y, k);
+            self.camera_x = utils.dan_lerp(self.camera_x, target_camera_x, k);
+            self.camera_y = utils.dan_lerp(self.camera_y, target_camera_y, k);
 
             self.camera_x = std.math.clamp(self.camera_x, camera_min_x, camera_max_x);
             self.camera_y = std.math.clamp(self.camera_y, camera_min_y, camera_max_y);
@@ -64,7 +82,7 @@ pub const Game = struct {
             //var player_speed = std.math.sqrt(player_speed_2);
             //var target_camera_zoom = 1 / (1 + player_speed * 0.02);
             //_ = target_camera_zoom;
-            //self.camera_zoom = ease(self.camera_zoom, target_camera_zoom, 40);
+            //self.camera_zoom = dan_lerp(self.camera_zoom, target_camera_zoom, 40);
 
             self.screenshake_t -= 1;
         }
@@ -92,7 +110,7 @@ pub const Game = struct {
         camera.Begin();
         rl.ClearBackground(consts.pico_white);
 
-        self.scene_perlin.draw();
+        self.scene_1.draw();
 
         //for (0..50) |i| {
         //    for (0..50) |j| {
@@ -227,62 +245,289 @@ pub const Perlin = struct {
     }
 };
 
-pub const ScenePerlin = struct {
+pub const ScenePerlin1DState = union(enum) {
+    Intro: struct { t: i32 },
+    SinglePerlin: struct { t: i32, perlin: AnimatedPerlin },
+    PerlinOctaves: struct { t: i32, perlins: [3]AnimatedPerlin },
+    MergedPerlin: struct { t: i32, perlins: [3]AnimatedPerlin },
+    MergedPerlin: struct { t: i32, perlins: [3]AnimatedPerlin },
+    End: void,
+};
+
+pub const ScenePerlin1d = struct {
+    state: ScenePerlin1DState,
+
+    pub fn tick(self: *ScenePerlin1d) void {
+        var clicked = rl.IsMouseButtonPressed(rl.MouseButton.MOUSE_BUTTON_LEFT);
+        switch (self.state) {
+            .Intro => |*x| {
+                x.t += 1;
+                if (x.t > 300 or clicked) {
+                    g_shader_noise_dump = 0.5;
+                    self.state = .{ .SinglePerlin = .{
+                        .t = 0,
+                        .perlin = .{},
+                    } };
+                }
+            },
+            .SinglePerlin => |*x| {
+                x.t += 1;
+                x.perlin.tick();
+                if (x.t > 300 or clicked) {
+                    var rand = FroggyRand.init(0);
+                    var perlins: [3]AnimatedPerlin = undefined;
+                    perlins[0] = .{};
+                    var pps = alloc.gpa.allocator().alloc(f32, 3) catch unreachable;
+                    pps[0] = 0.6;
+                    pps[1] = -1;
+                    pps[2] = 0.8;
+                    //for (0..3) |i| {
+                    //pps[i] = rand.gen_f32_one_minus_one(.{ 0, i });
+                    //}
+                    perlins[0].perlin.points = pps;
+                    perlins[0].y0 = consts.screen_height_f * 0.2;
+                    perlins[0].yscale = consts.screen_height_f * 0.105;
+                    perlins[0].point_col = consts.pico_red;
+
+                    perlins[1] = .{};
+                    pps = alloc.gpa.allocator().alloc(f32, 6) catch unreachable;
+                    for (0..6) |i| {
+                        pps[i] = rand.gen_f32_one_minus_one(.{ 10, i }) * 0.5;
+                    }
+                    perlins[1].perlin.points = pps;
+                    perlins[1].yscale = consts.screen_height_f * 0.105;
+
+                    perlins[2] = .{};
+                    pps = alloc.gpa.allocator().alloc(f32, 12) catch unreachable;
+                    for (0..12) |i| {
+                        pps[i] = rand.gen_f32_one_minus_one(.{ 2, i }) * 0.25;
+                    }
+                    perlins[2].perlin.points = pps;
+                    perlins[2].y0 = consts.screen_height_f * 0.8;
+                    perlins[2].yscale = consts.screen_height_f * 0.105;
+                    perlins[2].point_col = consts.pico_green;
+
+                    self.state = .{
+                        .PerlinOctaves = .{
+                            .t = 0,
+                            .perlins = perlins,
+                        },
+                    };
+                }
+            },
+            .PerlinOctaves => |*x| {
+                x.t += 1;
+                for (&x.perlins) |*p| {
+                    p.tick();
+                }
+
+                if (x.t > 600 or clicked) {
+                    for (&x.perlins) |*p| {
+                        p.t = 600;
+                    }
+
+                    self.state = .{
+                        .MergedPerlin = .{
+                            .t = 0,
+                            .perlins = x.perlins,
+                        },
+                    };
+                }
+            },
+            .MergedPerlin => |*x| {
+                x.t += 1;
+                for (&x.perlins) |*p| {
+                    p.tick();
+                }
+
+                if (x.t > 20 and x.t < 150) {
+                    x.perlins[0].y0 = utils.dan_lerp(x.perlins[0].y0, consts.screen_height_f * 0.35, 5.0);
+                    x.perlins[1].y0 = utils.dan_lerp(x.perlins[1].y0, x.perlins[0].y0, 12.0);
+                }
+
+                if (x.t > 400 and x.t < 800) {
+                    x.perlins[0].y0 = utils.dan_lerp(x.perlins[1].y0, consts.screen_height_f * 0.5, 5.0);
+                    x.perlins[1].y0 = utils.dan_lerp(x.perlins[1].y0, x.perlins[0].y0, 5.0);
+                    x.perlins[2].y0 = utils.dan_lerp(x.perlins[2].y0, x.perlins[0].y0, 12.0);
+                }
+
+                if (x.t > 1200 or clicked) {
+                    self.state = Wrapping{};
+                }
+            },
+            else => {
+                // TODO
+            },
+        }
+    }
+
+    pub fn draw(self: *ScenePerlin1d) void {
+        switch (self.state) {
+            .Intro => |x| {
+                _ = x;
+                // Nothing to do
+            },
+            .SinglePerlin => |*x| {
+                x.perlin.draw();
+            },
+            .PerlinOctaves => |*x| {
+                for (&x.perlins) |*p| {
+                    p.draw();
+                }
+            },
+            .MergedPerlin => |*x| {
+                if (x.t < 150) {
+                    for (&x.perlins) |*p| {
+                        p.draw();
+                    }
+                } else if (x.t < 400) {
+                    // Merge 0 and 1
+                    var t_merge = @as(f32, @floatFromInt(x.t - 150)) / 100.0;
+                    var perlin_1_single = [1]*AnimatedPerlin{&x.perlins[1]};
+                    x.perlins[0].draw_merged(&perlin_1_single, @min(t_merge, 1.0));
+                    x.perlins[2].draw();
+                } else {
+                    // Merge 0 and 1
+                    var t_merge = @as(f32, @floatFromInt(x.t - 400)) / 100.0;
+                    var perlin_1_and_2 = [2]*AnimatedPerlin{ &x.perlins[1], &x.perlins[2] };
+                    x.perlins[0].draw_merged(&perlin_1_and_2, @min(t_merge, 1.0));
+                }
+            },
+            else => {
+                // TODO
+            },
+        }
+    }
+};
+
+pub const AnimatedPerlin = struct {
     t: i32 = 0,
 
     perlin: Perlin = .{},
 
-    pub fn tick(self: *ScenePerlin) void {
+    y0: f32 = consts.screen_height_f * 0.5,
+    yscale: f32 = consts.screen_height_f * 0.25,
+
+    point_popin_inc: i32 = 20,
+    interp_popin_base: i32 = 150,
+    interp_popin_inc: i32 = 1,
+
+    point_col: rl.Color = consts.pico_sea,
+
+    pub fn tick(self: *AnimatedPerlin) void {
         self.t += 1;
     }
 
-    pub fn draw(self: *ScenePerlin) void {
-        const popin_const = 20;
-
-        // Draw line
+    pub fn draw_axis(self: *AnimatedPerlin, t_n: f32) void {
         var border_x = consts.screen_width_f * 0.2;
-        var line_end_n = @min(1.0, @as(f32, @floatFromInt(self.t)) / @as(f32, @floatFromInt((self.perlin.points.len - 1) * popin_const)));
+        var line_end_n = @min(1.0, t_n);
         var line_end = border_x + (consts.screen_width_f - (border_x * 2.0)) * line_end_n;
-        rl.DrawLineV(.{ .x = border_x, .y = consts.screen_height_f * 0.5 }, .{ .x = line_end, .y = consts.screen_height_f * 0.5 }, consts.pico_blue);
+        rl.DrawLineV(.{ .x = border_x, .y = self.y0 }, .{ .x = line_end, .y = self.y0 }, consts.pico_blue);
+    }
 
+    pub fn draw_points(self: *AnimatedPerlin, t: i32, r_mult: f32) void {
+        var border_x = consts.screen_width_f * 0.2;
         for (self.perlin.points, 0..) |val, i| {
-            var popin_time = i * popin_const;
-            if (self.t < popin_time) {
+            var popin_time = @as(i32, @intCast(i)) * self.point_popin_inc;
+            if (t < popin_time) {
                 break;
             }
 
-            var time_since_popin = self.t - @as(i32, @intCast(popin_time));
+            var time_since_popin = t - @as(i32, @intCast(popin_time));
             var tt = @as(f32, @floatFromInt(time_since_popin)) / 30.0;
 
-            var r = @max(3, 5 * std.math.sqrt(tt) * 1.0 / (0.1 + tt));
+            var r = @max(3, 5 * std.math.sqrt(tt) * 1.0 / (0.1 + tt)) * r_mult;
 
             var i_n = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(self.perlin.points.len - 1));
             var px = border_x + (consts.screen_width_f - (border_x * 2.0)) * i_n;
-            var py = consts.screen_height_f * 0.5 + val * consts.screen_height_f * 0.25;
+            var py = self.y0 + val * self.yscale;
 
             //rl.DrawLineV(.{ .x = px, .y = consts.screen_height_f * 0.5 }, .{ .x = px, .y = py }, consts.pico_blue);
-            rl.DrawLineV(.{ .x = px, .y = consts.screen_height_f * 0.5 + 2 }, .{ .x = px, .y = consts.screen_height_f * 0.5 - 2 }, consts.pico_blue);
-            rl.DrawCircleLines(@intFromFloat(std.math.round(px)), @intFromFloat(std.math.round(py)), r, consts.pico_sea);
+            rl.DrawLineV(.{ .x = px, .y = self.y0 + 2 }, .{ .x = px, .y = self.y0 - 2 }, consts.pico_blue);
+            rl.DrawCircleLines(@intFromFloat(std.math.round(px)), @intFromFloat(std.math.round(py)), r, self.point_col);
         }
+    }
 
+    pub fn draw_line(self: *AnimatedPerlin, t: i32, col: rl.Color, broken: bool) void {
+        var border_x = consts.screen_width_f * 0.2;
+        var border_x_r = consts.screen_width_f * 0.8;
         var x0: i32 = @intFromFloat(border_x);
-        var x1: i32 = @intFromFloat(line_end);
+        var x1: i32 = @intFromFloat(border_x_r);
         var i = x0;
         var prev: f32 = 0.0;
         while (i < x1) {
-            var popin_time = 150 + i * 1;
-            if (self.t < popin_time) {
+            var popin_time = self.interp_popin_base + @as(i32, @intCast(i)) * self.interp_popin_inc;
+            if (t < popin_time) {
                 break;
             }
+
             var x0_f: f32 = @floatFromInt(x0);
             var x1_f: f32 = @floatFromInt(x1);
             var i_n = (@as(f32, @floatFromInt(i)) - x0_f) / (x1_f - x0_f);
             var sample = self.perlin.sample(i_n);
-            var py = consts.screen_height_f * 0.5 + consts.screen_height_f * 0.25 * sample;
+            var py = self.y0 + sample * self.yscale;
+            //rl.DrawPixel(i, @intFromFloat(py), consts.pico_blue);
+            if (i > x0) {
+                if (broken) {
+                    if (@mod(i, 2) == 0) {
+                        utils.draw_broken_line_i(i - 1, @intFromFloat(prev), i, @intFromFloat(py), 1.0, 1.0, col);
+                    }
+                } else {
+                    rl.DrawLine(i - 1, @intFromFloat(prev), i, @intFromFloat(py), col);
+                }
+            }
+            i += 1;
+            prev = py;
+        }
+    }
+
+    pub fn draw(self: *AnimatedPerlin) void {
+        // Draw line
+        self.draw_axis(@as(f32, @floatFromInt(self.t)) / @as(f32, @floatFromInt((self.perlin.points.len - 1) * @as(usize, @intCast(self.point_popin_inc)))));
+
+        self.draw_points(self.t, 1);
+        self.draw_line(self.t, consts.pico_blue, false);
+    }
+
+    pub fn draw_merged(self: *AnimatedPerlin, others: []*AnimatedPerlin, t_merge: f32) void {
+        self.draw_axis(1.0);
+
+        self.draw_points(1000, 0.5);
+        for (others) |other| {
+            other.draw_points(1000, 0.5);
+        }
+
+        self.draw_line(1000, self.point_col, true);
+        for (others) |other| {
+            other.draw_line(1000, other.point_col, true);
+        }
+
+        var border_x = consts.screen_width_f * 0.2;
+        var border_x_r = consts.screen_width_f * 0.8;
+        var x0: i32 = @intFromFloat(border_x);
+        var x1: i32 = @intFromFloat(border_x_r);
+        var i = x0;
+        var prev: f32 = 0.0;
+        while (i < x1) {
+            var x0_f: f32 = @floatFromInt(x0);
+            var x1_f: f32 = @floatFromInt(x1);
+            var i_n = (@as(f32, @floatFromInt(i)) - x0_f) / (x1_f - x0_f);
+
+            if (t_merge < i_n) {
+                break;
+            }
+
+            var sample = self.perlin.sample(i_n);
+            for (others) |other| {
+                var other_sample = other.perlin.sample(i_n);
+                sample += other_sample;
+            }
+            var py = self.y0 + sample * self.yscale;
             //rl.DrawPixel(i, @intFromFloat(py), consts.pico_blue);
             if (i > x0) {
                 rl.DrawLine(i - 1, @intFromFloat(prev), i, @intFromFloat(py), consts.pico_blue);
             }
+
             i += 1;
             prev = py;
         }

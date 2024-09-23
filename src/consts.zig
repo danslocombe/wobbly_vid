@@ -40,3 +40,25 @@ pub const pico_sea = from_hex("29adff");
 pub const pico_lilac = from_hex("83769c");
 pub const pico_pink = from_hex("ff77a8");
 pub const pico_beige = from_hex("ffccaa");
+
+pub const all_colors = [_]rl.Color{
+    pico_black,
+    pico_blue,
+    pico_purple,
+    //pico_leaf,
+
+    pico_brown,
+    pico_darkgrey,
+    pico_grey,
+    pico_white,
+
+    pico_red,
+    pico_orange,
+    pico_yellow,
+    pico_green,
+
+    pico_sea,
+    pico_lilac,
+    pico_pink,
+    pico_beige,
+};

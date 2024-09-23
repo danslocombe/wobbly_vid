@@ -32,10 +32,7 @@ pub fn main() anyerror!void {
     game_lib.particle_frames = load_frames("dust.png");
     var framebuffer = rl.LoadRenderTexture(consts.screen_width, consts.screen_height);
 
-    var game = game_lib.Game{
-        .particles = std.ArrayList(game_lib.Particle).init(alloc.gpa.allocator()),
-        .particles_dead = std.bit_set.DynamicBitSet.initEmpty(alloc.gpa.allocator(), 4) catch unreachable,
-    };
+    var game = game_lib.Game.init();
 
     while (!rl.WindowShouldClose()) {
         var mapping = utils.FrameBufferToScreenInfo.compute(&framebuffer.texture);
@@ -64,11 +61,34 @@ const normalize = utils.normalize;
 const mag_v2 = utils.mag_v2;
 const mag2_v2 = utils.mag2_v2;
 
-fn draw_framebuffer_to_screen(framebuffer: *rl.RenderTexture2D, mapping: *utils.FrameBufferToScreenInfo) void {
+var g_shader_time: i32 = 0;
+
+fn draw_framebuffer_to_screen(p_framebuffer: *rl.RenderTexture2D, mapping: *utils.FrameBufferToScreenInfo) void {
+    var framebuffer: rl.Texture = undefined;
+    var unload_framebuffer = false;
+
+    game_lib.g_shader_noise_dump *= 0.86;
+    g_shader_time += 1;
+    if (game_lib.g_shader_noise_dump > 0.01) {
+        // What are we doing here?
+        // Load the framebuffer into memory
+        // Dump a load of random data into it
+        // Load it back. Graphics!
+        var image_framebuffer = rl.LoadImageFromTexture(p_framebuffer.texture);
+        dump_noise(&image_framebuffer, g_shader_time, game_lib.g_shader_noise_dump);
+
+        framebuffer = rl.LoadTextureFromImage(image_framebuffer);
+        unload_framebuffer = true;
+
+        rl.UnloadImage(image_framebuffer);
+    } else {
+        framebuffer = p_framebuffer.texture;
+    }
+
     rl.BeginDrawing();
     rl.ClearBackground(consts.pico_black);
 
-    rl.DrawTexturePro(framebuffer.texture, mapping.source, mapping.destination, .{ .x = 0.0, .y = 0.0 }, 0.0, rl.WHITE);
+    rl.DrawTexturePro(framebuffer, mapping.source, mapping.destination, .{ .x = 0.0, .y = 0.0 }, 0.0, rl.WHITE);
 
     rl.DrawFPS(10, 10);
     rl.EndDrawing();
@@ -100,4 +120,38 @@ pub fn clear_temp_alloc() void {
     _ = alloc.temp_alloc.reset(.{
         .retain_with_limit = 64 * 1024,
     });
+}
+
+fn dump_noise(framebuffer_in_memory: *rl.Image, t: i32, amp: f32) void {
+    // Assert that we are in the pixel format we expect.
+    if (framebuffer_in_memory.format != rl.PixelFormat.PIXELFORMAT_UNCOMPRESSED_R8G8B8A8) {
+        return;
+    }
+
+    var rand = FroggyRand.init(t);
+    var max_offset_bytes = framebuffer_in_memory.width * framebuffer_in_memory.height * 4;
+    var count: usize = @intFromFloat(30 * amp);
+
+    for (0..count) |i| {
+        // Generate a position in the framebuffer memory and length
+        var len = rand.gen_usize_range(i, 50 * 4, 150 * 4) * 8;
+        var pos = rand.gen_usize_range(i, 0, @as(usize, @intCast(max_offset_bytes)) - len);
+        // Shouldnt be needed with -len in above but keep to be safe.
+        len = @min(len, @as(usize, @intCast(max_offset_bytes)) - len - 1);
+
+        // We want an interesting pattern when we dump data
+        // so we memset using a u64 instead of a single color or set of bytes.
+        // Take our pos / len and convert as if framebuffer is an array of u64s.
+        var pos_u64 = @divTrunc(pos, 8);
+        var len_u64 = @divTrunc(len, 8);
+        var data_ptr_u64: [*]align(1) u64 = @ptrCast(framebuffer_in_memory.data.?);
+        var color_0 = consts.all_colors[rand.gen_usize_range(.{ i, "col_0" }, 0, consts.all_colors.len - 1)];
+        var color_1 = consts.all_colors[rand.gen_usize_range(.{ i, "col_1" }, 0, consts.all_colors.len - 1)];
+
+        var color_0_u64_ptr: *align(1) u64 = @ptrCast(&color_0);
+        var color_1_u64_ptr: *align(1) u64 = @ptrCast(&color_1);
+
+        var value: u64 = (color_0_u64_ptr.* << 8) | (color_1_u64_ptr.*);
+        @memset(data_ptr_u64[pos_u64 .. pos_u64 + len_u64], value);
+    }
 }

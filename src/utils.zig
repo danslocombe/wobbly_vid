@@ -57,7 +57,7 @@ pub fn normalize(p: rl.Vector2) rl.Vector2 {
     return scale_v2(1.0 / mag, p);
 }
 
-pub fn ease(x0: f32, x1: f32, k: f32) f32 {
+pub fn dan_lerp(x0: f32, x1: f32, k: f32) f32 {
     return (x1 + x0 * (k - 1)) / k;
 }
 
@@ -103,3 +103,46 @@ pub const FrameBufferToScreenInfo = struct {
         };
     }
 };
+
+pub fn draw_broken_line_i(x0: i32, y0: i32, x1: i32, y1: i32, stripe_off_len: f32, stripe_on_len: f32, color: rl.Color) void {
+    draw_broken_line(.{ .x = @as(f32, @floatFromInt(x0)), .y = @as(f32, @floatFromInt(y0)) }, .{ .x = @as(f32, @floatFromInt(x1)), .y = @as(f32, @floatFromInt(y1)) }, stripe_off_len, stripe_on_len, color);
+}
+
+pub fn draw_broken_line(p0: rl.Vector2, p1: rl.Vector2, stripe_off_len: f32, stripe_on_len: f32, color: rl.Color) void {
+    var delta = .{ .x = p1.x - p0.x, .y = p1.y - p0.y };
+    var len = mag_v2(delta);
+    if (len == 0) {
+        // Nothing to do, p0 == p1.
+        return;
+    }
+
+    var delta_norm = .{ .x = delta.x / len, .y = delta.y / len };
+    var p = p0;
+
+    var cum_dist: f32 = 0;
+
+    var reached_dest = false;
+    var stripe_on = true;
+    while (!reached_dest) {
+        if (stripe_on) {
+            cum_dist += stripe_on_len;
+        } else {
+            cum_dist += stripe_off_len;
+        }
+
+        if (cum_dist > len) {
+            cum_dist = len;
+            reached_dest = true;
+        }
+
+        var pnext = .{ .x = p0.x + delta_norm.x * cum_dist, .y = p0.y + delta_norm.y * cum_dist };
+
+        if (stripe_on) {
+            rl.DrawLineV(p, pnext, color);
+        }
+
+        stripe_on = !stripe_on;
+
+        p = pnext;
+    }
+}
