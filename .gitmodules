@@ -1,0 +1,4 @@
+[submodule "raylib-zig"]
+	path = raylib-zig
+	url = https://github.com/danslocombe/raylib-zig.git
+	branch = dan
