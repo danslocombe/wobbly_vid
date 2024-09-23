@@ -33,12 +33,16 @@ pub const Game = struct {
     // ticking and drawing.
     particles_dead: std.bit_set.DynamicBitSet,
 
+    scene_perlin: ScenePerlin = .{},
+
     pub fn tick(self: *Game) void {
         self.t += 1;
 
         if (rl.IsKeyPressed(rl.KeyboardKey.KEY_R)) {
             // TODO resett
         }
+
+        self.scene_perlin.tick();
 
         // Update camera
         {
@@ -86,24 +90,26 @@ pub const Game = struct {
         }
 
         camera.Begin();
-        rl.ClearBackground(consts.pico_black);
+        rl.ClearBackground(consts.pico_white);
 
-        for (0..50) |i| {
-            for (0..50) |j| {
-                const w = 25;
-                var color = consts.pico_sea;
-                var a = ((i % 2) == 0);
-                var b = ((j % 2) == 0);
-                // No xor :(
-                if ((a or b) and !(a and b)) {
-                    color = consts.pico_white;
-                }
+        self.scene_perlin.draw();
 
-                rl.DrawRectangle(@as(i32, @intCast(i)) * w, @as(i32, @intCast(j)) * w, w, w, color);
-            }
-        }
+        //for (0..50) |i| {
+        //    for (0..50) |j| {
+        //        const w = 25;
+        //        var color = consts.pico_sea;
+        //        var a = ((i % 2) == 0);
+        //        var b = ((j % 2) == 0);
+        //        // No xor :(
+        //        if ((a or b) and !(a and b)) {
+        //            color = consts.pico_white;
+        //        }
 
-        rl.DrawRectangle(camera_min_x, ground_y, camera_max_x + 500 - camera_min_x, camera_max_y + 200 - ground_y, consts.pico_black);
+        //        rl.DrawRectangle(@as(i32, @intCast(i)) * w, @as(i32, @intCast(j)) * w, w, w, color);
+        //    }
+        //}
+
+        //rl.DrawRectangle(camera_min_x, ground_y, camera_max_x + 500 - camera_min_x, camera_max_y + 200 - ground_y, consts.pico_black);
 
         for (self.particles.items, 0..) |*p, i| {
             if (self.particles_dead.isSet(i)) {
@@ -201,3 +207,84 @@ fn draw_particle_frame_scaled(frame: usize, pos: rl.Vector2, scale_x: f32, scale
     var no_tint = rl.WHITE;
     rl.DrawTexturePro(sprite, rect, dest, origin, 0, no_tint);
 }
+
+pub const Perlin = struct {
+    points: []const f32 = &[_]f32{ 0.0, 0.5, -1.0, 0.75, 0.6, 0.2 },
+
+    pub fn sample(self: *Perlin, t: f32) f32 {
+        var t_big = t * @as(f32, @floatFromInt(self.points.len - 1));
+        var before_f = std.math.floor(t_big);
+        var after_f = std.math.ceil(t_big);
+        var before_i: usize = @intFromFloat(before_f);
+        var after_i: usize = @intFromFloat(after_f);
+        if (after_i >= self.points.len) {
+            after_i = self.points.len - 1;
+        }
+
+        var frac = t_big - before_f;
+        return utils.straight_lerp(self.points[after_i], self.points[before_i], frac);
+        //return self.points[before_i];
+    }
+};
+
+pub const ScenePerlin = struct {
+    t: i32 = 0,
+
+    perlin: Perlin = .{},
+
+    pub fn tick(self: *ScenePerlin) void {
+        self.t += 1;
+    }
+
+    pub fn draw(self: *ScenePerlin) void {
+        const popin_const = 20;
+
+        // Draw line
+        var border_x = consts.screen_width_f * 0.2;
+        var line_end_n = @min(1.0, @as(f32, @floatFromInt(self.t)) / @as(f32, @floatFromInt((self.perlin.points.len - 1) * popin_const)));
+        var line_end = border_x + (consts.screen_width_f - (border_x * 2.0)) * line_end_n;
+        rl.DrawLineV(.{ .x = border_x, .y = consts.screen_height_f * 0.5 }, .{ .x = line_end, .y = consts.screen_height_f * 0.5 }, consts.pico_blue);
+
+        for (self.perlin.points, 0..) |val, i| {
+            var popin_time = i * popin_const;
+            if (self.t < popin_time) {
+                break;
+            }
+
+            var time_since_popin = self.t - @as(i32, @intCast(popin_time));
+            var tt = @as(f32, @floatFromInt(time_since_popin)) / 30.0;
+
+            var r = @max(3, 5 * std.math.sqrt(tt) * 1.0 / (0.1 + tt));
+
+            var i_n = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(self.perlin.points.len - 1));
+            var px = border_x + (consts.screen_width_f - (border_x * 2.0)) * i_n;
+            var py = consts.screen_height_f * 0.5 + val * consts.screen_height_f * 0.25;
+
+            //rl.DrawLineV(.{ .x = px, .y = consts.screen_height_f * 0.5 }, .{ .x = px, .y = py }, consts.pico_blue);
+            rl.DrawLineV(.{ .x = px, .y = consts.screen_height_f * 0.5 + 2 }, .{ .x = px, .y = consts.screen_height_f * 0.5 - 2 }, consts.pico_blue);
+            rl.DrawCircleLines(@intFromFloat(std.math.round(px)), @intFromFloat(std.math.round(py)), r, consts.pico_sea);
+        }
+
+        var x0: i32 = @intFromFloat(border_x);
+        var x1: i32 = @intFromFloat(line_end);
+        var i = x0;
+        var prev: f32 = 0.0;
+        while (i < x1) {
+            var popin_time = 150 + i * 1;
+            if (self.t < popin_time) {
+                break;
+            }
+            var x0_f: f32 = @floatFromInt(x0);
+            var x1_f: f32 = @floatFromInt(x1);
+            var i_n = (@as(f32, @floatFromInt(i)) - x0_f) / (x1_f - x0_f);
+            var sample = self.perlin.sample(i_n);
+            var py = consts.screen_height_f * 0.5 + consts.screen_height_f * 0.25 * sample;
+            //rl.DrawPixel(i, @intFromFloat(py), consts.pico_blue);
+            if (i > x0) {
+                rl.DrawLine(i - 1, @intFromFloat(prev), i, @intFromFloat(py), consts.pico_blue);
+            }
+            i += 1;
+            prev = py;
+        }
+    }
+};

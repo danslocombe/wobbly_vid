@@ -61,6 +61,10 @@ pub fn ease(x0: f32, x1: f32, k: f32) f32 {
     return (x1 + x0 * (k - 1)) / k;
 }
 
+pub fn straight_lerp(x0: f32, x1: f32, t: f32) f32 {
+    return x0 * t + x1 * (1.0 - t);
+}
+
 pub const FrameBufferToScreenInfo = struct {
     mouse_x: i32,
     mouse_y: i32,
