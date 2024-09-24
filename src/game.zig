@@ -249,7 +249,7 @@ pub const Perlin = struct {
         }
 
         var frac = t_big - before_f;
-        return utils.straight_lerp(self.points[after_i], self.points[before_i], frac);
+        return utils.straight_lerp(self.points[before_i], self.points[after_i], frac);
         //return self.points[before_i];
     }
 };
@@ -260,6 +260,10 @@ pub const ScenePerlin1DState = union(enum) {
     PerlinOctaves: struct { t: i32, perlins: [3]AnimatedPerlin },
     MergedPerlin: struct { t: i32, perlins: [3]AnimatedPerlin },
     IntroOsc: struct { t: i32 },
+    OscStackedCentral: struct { t: i32 },
+    OscStackedTipTail: struct { t: i32 },
+    OscStackedMovable: struct { t: i32, small_offset: f32 = 0 },
+    OscLandscape: struct { t: i32 },
     End: void,
 };
 
@@ -267,7 +271,13 @@ pub const ScenePerlin1d = struct {
     state: ScenePerlin1DState,
 
     pub fn tick(self: *ScenePerlin1d) void {
-        var clicked = rl.IsMouseButtonPressed(rl.MouseButton.MOUSE_BUTTON_LEFT);
+        if (rl.IsKeyPressed(rl.KeyboardKey.KEY_R)) {
+            // Reset
+            self.state = .{ .Intro = .{ .t = 0 } };
+            return;
+        }
+
+        var clicked = rl.IsMouseButtonPressed(rl.MouseButton.MOUSE_BUTTON_LEFT) or rl.IsKeyPressed(rl.KeyboardKey.KEY_F);
         switch (self.state) {
             .Intro => |*x| {
                 x.t += 1;
@@ -367,6 +377,45 @@ pub const ScenePerlin1d = struct {
             },
             .IntroOsc => |*x| {
                 x.t += 1;
+                if (x.t > 500 or clicked) {
+                    // Carry over t so that the animations line up
+                    self.state = .{ .OscStackedCentral = .{ .t = x.t } };
+                }
+            },
+            .OscStackedCentral => |*x| {
+                x.t += 1;
+                if (x.t > 1000 or clicked) {
+                    self.state = .{ .OscStackedTipTail = .{ .t = x.t } };
+                }
+            },
+            .OscStackedTipTail => |*x| {
+                x.t += 1;
+                if (x.t > 2000 or clicked) {
+                    self.state = .{ .OscStackedMovable = .{ .t = x.t } };
+                }
+            },
+            .OscStackedMovable => |*x| {
+                x.t += 1;
+
+                //if (rl.IsMouseButtonDown(rl.MouseButton.MOUSE_BUTTON_LEFT)) {
+                //x.small_offset = utils.g_mouse_screen.x / 60;
+                if (rl.IsKeyDown(rl.KeyboardKey.KEY_UP)) {
+                    x.small_offset -= 0.08 + 0.02;
+                }
+                if (rl.IsKeyDown(rl.KeyboardKey.KEY_DOWN)) {
+                    x.small_offset += 0.08;
+                }
+
+                //}
+
+                if (clicked) {
+                    self.state = .{ .OscLandscape = .{
+                        .t = 0,
+                    } };
+                }
+            },
+            .OscLandscape => |*x| {
+                x.t += 1;
             },
             else => {
                 // TODO
@@ -410,81 +459,222 @@ pub const ScenePerlin1d = struct {
                 var tt = @as(f32, @floatFromInt(state.t)) * 0.02;
                 const r = 32;
                 const col = consts.pico_sea;
-                var t0 = tt;
+                draw_generator(tt, r, r, col);
+            },
+            .OscStackedCentral => |*state| {
+                var tt = @as(f32, @floatFromInt(state.t)) * 0.02;
+                const r = 32;
+                const col = consts.pico_sea;
                 var t1 = tt + 0.25 * 3.141;
                 var t2 = tt + 0.55 * 3.141;
-                const osc_1_start = 60;
-                const osc_2_start = 120;
-                const joined_view = 200;
+                //const osc_1_start = 60;
+                //_ = osc_1_start;
+                //const osc_2_start = 120;
+                //_ = osc_2_start;
+                //const joined_view = 200;
+                //_ = joined_view;
 
-                if (state.t < joined_view) {
-                    draw_generator(tt, r, r, col);
-                }
+                draw_generator(tt, r, r, col);
+                draw_generator(t1, r * 0.5, r, consts.pico_red);
+                draw_generator(t2, r * 0.25, r, consts.pico_green);
 
-                if (state.t > osc_1_start and state.t < joined_view) {
-                    draw_generator(t1, r * 0.5, r, consts.pico_red);
-                }
-                if (state.t > osc_2_start and state.t < joined_view) {
-                    draw_generator(t2, r * 0.25, r, consts.pico_green);
-                }
+                var angle0 = tt;
+                var angle1 = t1;
+                var angle2 = t2;
 
-                if (state.t > joined_view) {
-                    // Stacked
-                    var angle0 = t0;
-                    var angle1 = t1;
-                    var angle2 = t2;
+                var cx = consts.screen_width_f * 0.3;
+                var cy = consts.screen_height_f * 0.5;
+                var p = .{ .x = cx, .y = cy };
+                var p_dotted_end = p;
+                p_dotted_end.x = cx + r * 1.5;
 
-                    var cx = consts.screen_width_f * 0.3;
-                    var cy = consts.screen_height_f * 0.5;
+                var x0: i32 = @intFromFloat(p_dotted_end.x);
+                var x_end: i32 = @intFromFloat(consts.screen_width_f * 0.85);
+                var x = x0;
+                var prev_y: f32 = 0;
+                while (x < x_end) {
+                    var y_n: f32 = 0;
+                    // Sum all the things
+                    y_n += std.math.sin(angle0);
+                    y_n += std.math.sin(angle1) * 0.5;
+                    y_n += std.math.sin(angle2) * 0.25;
+                    var y = cy + y_n * r;
 
-                    var end_0_x = cx + std.math.cos(angle0) * r;
-                    var end_0_y = cy + std.math.sin(angle0) * r;
-                    rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), r, consts.pico_sea);
-                    utils.draw_arrow(@intFromFloat(cx), @intFromFloat(cy), @intFromFloat(end_0_x), @intFromFloat(end_0_y), consts.pico_blue, 10);
-
-                    var end_1_x = end_0_x + std.math.cos(angle1) * r * 0.5;
-                    var end_1_y = end_0_y + std.math.sin(angle1) * r * 0.5;
-                    rl.DrawCircleLines(@intFromFloat(end_0_x), @intFromFloat(end_0_y), r * 0.5, consts.pico_red);
-                    //utils.draw_arrow(@intFromFloat(end_0_x), @intFromFloat(end_0_y), @intFromFloat(end_1_x), @intFromFloat(end_1_y), consts.pico_red, 4);
-                    utils.draw_arrow(@intFromFloat(end_0_x), @intFromFloat(end_0_y), @intFromFloat(end_1_x), @intFromFloat(end_1_y), consts.pico_blue, 4);
-
-                    var end_2_x = end_1_x + std.math.cos(angle2) * r * 0.25;
-                    var end_2_y = end_1_y + std.math.sin(angle2) * r * 0.25;
-                    rl.DrawCircleLines(@intFromFloat(end_1_x), @intFromFloat(end_1_y), r * 0.25, consts.pico_green);
-                    //utils.draw_arrow(@intFromFloat(end_1_x), @intFromFloat(end_1_y), @intFromFloat(end_2_x), @intFromFloat(end_2_y), consts.pico_green, 3);
-                    utils.draw_arrow(@intFromFloat(end_1_x), @intFromFloat(end_1_y), @intFromFloat(end_2_x), @intFromFloat(end_2_y), consts.pico_blue, 3);
-
-                    var p = .{ .x = end_2_x, .y = end_2_y };
-                    var p_dotted_end = p;
-                    p_dotted_end.x = cx + r * 1.5;
-                    utils.draw_broken_line(p, p_dotted_end, 2.0, 2.0, consts.pico_blue);
-
-                    var x0: i32 = @intFromFloat(p_dotted_end.x);
-                    var x_end: i32 = @intFromFloat(consts.screen_width_f * 0.85);
-                    var x = x0;
-                    var prev_y: f32 = 0;
-                    while (x < x_end) {
-                        var y_n: f32 = 0;
-                        // Sum all the things
-                        y_n += std.math.sin(angle0);
-                        y_n += std.math.sin(angle1) * 0.5;
-                        y_n += std.math.sin(angle2) * 0.25;
-                        var y = cy + y_n * r;
-
-                        if (x != x0) {
-                            rl.DrawLine(x - 1, @intFromFloat(prev_y), x, @intFromFloat(y), consts.pico_blue);
-                        }
-
-                        angle0 -= 0.02;
-                        angle1 -= 0.02;
-                        angle2 -= 0.02;
-                        x += 1;
-                        prev_y = y;
+                    if (x != x0) {
+                        rl.DrawLine(x - 1, @intFromFloat(prev_y), x, @intFromFloat(y), consts.pico_blue);
                     }
+
+                    angle0 -= 0.02;
+                    angle1 -= 0.02;
+                    angle2 -= 0.02;
+                    x += 1;
+                    prev_y = y;
+                }
+            },
+            .OscStackedTipTail => |*state| {
+                var t0 = @as(f32, @floatFromInt(state.t)) * 0.02;
+                const r = 32;
+                var t1 = t0 + 0.25 * 3.141;
+                var t2 = t0 + 0.55 * 3.141;
+                var angle0 = t0;
+                var angle1 = t1;
+                var angle2 = t2;
+
+                var cx = consts.screen_width_f * 0.3;
+                var cy = consts.screen_height_f * 0.5;
+
+                var end_0_x = cx + std.math.cos(angle0) * r;
+                var end_0_y = cy + std.math.sin(angle0) * r;
+                rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), r, consts.pico_sea);
+                utils.draw_arrow(@intFromFloat(cx), @intFromFloat(cy), @intFromFloat(end_0_x), @intFromFloat(end_0_y), consts.pico_blue, 10);
+
+                var end_1_x = end_0_x + std.math.cos(angle1) * r * 0.5;
+                var end_1_y = end_0_y + std.math.sin(angle1) * r * 0.5;
+                rl.DrawCircleLines(@intFromFloat(end_0_x), @intFromFloat(end_0_y), r * 0.5, consts.pico_red);
+                //utils.draw_arrow(@intFromFloat(end_0_x), @intFromFloat(end_0_y), @intFromFloat(end_1_x), @intFromFloat(end_1_y), consts.pico_red, 4);
+                utils.draw_arrow(@intFromFloat(end_0_x), @intFromFloat(end_0_y), @intFromFloat(end_1_x), @intFromFloat(end_1_y), consts.pico_blue, 4);
+
+                var end_2_x = end_1_x + std.math.cos(angle2) * r * 0.25;
+                var end_2_y = end_1_y + std.math.sin(angle2) * r * 0.25;
+                rl.DrawCircleLines(@intFromFloat(end_1_x), @intFromFloat(end_1_y), r * 0.25, consts.pico_green);
+                //utils.draw_arrow(@intFromFloat(end_1_x), @intFromFloat(end_1_y), @intFromFloat(end_2_x), @intFromFloat(end_2_y), consts.pico_green, 3);
+                utils.draw_arrow(@intFromFloat(end_1_x), @intFromFloat(end_1_y), @intFromFloat(end_2_x), @intFromFloat(end_2_y), consts.pico_blue, 3);
+
+                var p = .{ .x = end_2_x, .y = end_2_y };
+                var p_dotted_end = p;
+                p_dotted_end.x = cx + r * 1.5;
+                utils.draw_broken_line(p, p_dotted_end, 2.0, 2.0, consts.pico_blue);
+
+                var x0: i32 = @intFromFloat(p_dotted_end.x);
+                var x_end: i32 = @intFromFloat(consts.screen_width_f * 0.85);
+                var x = x0;
+                var prev_y: f32 = 0;
+                while (x < x_end) {
+                    var y_n: f32 = 0;
+                    // Sum all the things
+                    y_n += std.math.sin(angle0);
+                    y_n += std.math.sin(angle1) * 0.5;
+                    y_n += std.math.sin(angle2) * 0.25;
+                    var y = cy + y_n * r;
+
+                    if (x != x0) {
+                        rl.DrawLine(x - 1, @intFromFloat(prev_y), x, @intFromFloat(y), consts.pico_blue);
+                    }
+
+                    angle0 -= 0.02;
+                    angle1 -= 0.02;
+                    angle2 -= 0.02;
+                    x += 1;
+                    prev_y = y;
+                }
+            },
+            .OscStackedMovable => |*state| {
+                var cx = consts.screen_width_f * 0.3;
+                var cy = consts.screen_height_f * 0.5;
+
+                var tt = @as(f32, @floatFromInt(state.t)) * 0.02;
+                const r = 32;
+                const col = consts.pico_sea;
+                var t1 = tt + 0.25 * 3.141;
+                var t2 = tt + 0.55 * 3.141 + state.small_offset;
+
+                rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), 32 * 0.25 - 0.5, consts.pico_green);
+                rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), 32 * 0.25 + 0.5, consts.pico_green);
+
+                draw_generator(tt, r, r, col);
+                draw_generator(t1, r * 0.5, r, consts.pico_red);
+
+                draw_generator(t2, r * 0.25, r, consts.pico_green);
+
+                var angle0 = tt;
+                var angle1 = t1;
+                var angle2 = t2;
+
+                //rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), 32 * 0.25 + 0.5, consts.pico_green);
+
+                var p = .{ .x = cx, .y = cy };
+                var p_dotted_end = p;
+                p_dotted_end.x = cx + r * 1.5;
+
+                var x0: i32 = @intFromFloat(p_dotted_end.x);
+                var x_end: i32 = @intFromFloat(consts.screen_width_f * 0.85);
+                var x = x0;
+                var prev_y: f32 = 0;
+                while (x < x_end) {
+                    var y_n: f32 = 0;
+                    // Sum all the things
+                    y_n += std.math.sin(angle0);
+                    y_n += std.math.sin(angle1) * 0.5;
+                    y_n += std.math.sin(angle2) * 0.25;
+                    var y = cy + y_n * r;
+
+                    if (x != x0) {
+                        rl.DrawLine(x - 1, @intFromFloat(prev_y), x, @intFromFloat(y), consts.pico_blue);
+                    }
+
+                    angle0 -= 0.02;
+                    angle1 -= 0.02;
+                    angle2 -= 0.02;
+                    x += 1;
+                    prev_y = y;
+                }
+            },
+            .OscLandscape => |*state| {
+                var tt = @as(f32, @floatFromInt(state.t)) * 0.02;
+
+                const r = 12;
+                const arrow_size = 5;
+
+                var generators: [3]rl.Vector2 = undefined;
+
+                const cx0 = consts.screen_width_f * 0.3;
+                const ww = consts.screen_width_f * 0.4;
+                var cx = cx0;
+                var cy = consts.screen_height_f * 0.4;
+                var t0 = tt;
+                rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), r, consts.pico_blue);
+                var a0_x = cx + std.math.cos(t0) * r;
+                var a0_y = cy + std.math.sin(t0) * r;
+                utils.draw_arrow_f(cx, cy, a0_x, a0_y, consts.pico_sea, arrow_size);
+                var x_norm = (cx - cx0) / ww;
+                generators[0] = .{ .x = x_norm, .y = std.math.sin(t0) };
+
+                cx = consts.screen_width_f * 0.5;
+                var t1 = tt + 0.2 * 3.141;
+                rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), r, consts.pico_blue);
+                var a1_x = cx + std.math.cos(t1) * r;
+                var a1_y = cy + std.math.sin(t1) * r;
+                utils.draw_arrow_f(cx, cy, a1_x, a1_y, consts.pico_sea, arrow_size);
+                x_norm = (cx - cx0) / ww;
+                generators[1] = .{ .x = x_norm, .y = std.math.sin(t1) };
+
+                cx = consts.screen_width_f * 0.7;
+                var t2 = tt + 0.8 * 3.141;
+                rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), r, consts.pico_blue);
+                var a2_x = cx + std.math.cos(t2) * r;
+                var a2_y = cy + std.math.sin(t2) * r;
+                utils.draw_arrow_f(cx, cy, a2_x, a2_y, consts.pico_sea, arrow_size);
+                x_norm = (cx - cx0) / ww;
+                generators[2] = .{ .x = x_norm, .y = std.math.sin(t2) };
+
+                var x_end: i32 = @intFromFloat(consts.screen_width_f * 0.7);
+                var x: i32 = cx0;
+                var prev_y: f32 = 0;
+
+                while (x < x_end) {
+                    var x_n = (@as(f32, @floatFromInt(x)) - cx0) / ww;
+                    var y = cy + interp_sample_closest(x_n, &generators) * r;
+
+                    if (x != cx0) {
+                        rl.DrawLine(x - 1, @intFromFloat(prev_y), x, @intFromFloat(y), consts.pico_blue);
+                    }
+
+                    prev_y = y;
+                    x += 1;
                 }
             },
             else => {
-                // TODO
+                // Todo
             },
         }
     }
@@ -656,4 +846,29 @@ pub fn draw_generator(theta: f32, r: f32, r_big: f32, col: rl.Color) void {
         x += 1;
         prev_y = y;
     }
+}
+
+pub fn interp_sample_closest(x: f32, generators: []const rl.Vector2) f32 {
+    // Assume generators are increasing
+    var i: usize = 0;
+
+    while (i < generators.len) {
+        if (generators[i].x >= x) {
+            break;
+        }
+
+        i += 1;
+    }
+
+    var prev = i -| 1;
+
+    if (prev == i) {
+        return generators[i].y;
+    }
+
+    var x_next: f32 = generators[i].x;
+    var x_before: f32 = generators[prev].x;
+
+    var frac = (x - x_before) / (x_next - x_before);
+    return utils.straight_lerp(generators[prev].y, generators[i].y, frac);
 }
