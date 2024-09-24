@@ -6,7 +6,10 @@ const alloc = @import("alloc.zig");
 
 const utils = @import("utils.zig");
 
+const fonts = @import("fonts.zig");
+const sprites = @import("sprites.zig");
 const FroggyRand = @import("froggy_rand.zig").FroggyRand;
+const Styling = @import("adlib.zig").Styling;
 
 pub const ground_y = 150;
 
@@ -59,6 +62,7 @@ pub const Game = struct {
 
     pub fn tick(self: *Game) void {
         self.t += 1;
+        sprites.g_t += 1;
 
         if (rl.IsKeyPressed(rl.KeyboardKey.KEY_R)) {
             // TODO resett
@@ -532,16 +536,30 @@ pub const ScenePerlin1d = struct {
     pub fn draw(self: *ScenePerlin1d) void {
         switch (self.state) {
             .Intro => |x| {
-                _ = x;
+                //fonts.g_linssen.draw_text(0, "making interesting things boring", 60, 150, consts.pico_black);
+                sprites.draw_blob_text("maths", .{ .x = 100, .y = 100 });
+
+                var styling = Styling{
+                    .color = consts.pico_black,
+                    .wavy = true,
+                    .rainbow = true,
+                };
+                var font_state = fonts.DrawTextState{};
+                fonts.g_linssen.draw_text_state(x.t, "rigorous fun!", 30, 210, styling, &font_state);
                 // Nothing to do
             },
             .SinglePerlin => |*x| {
                 x.perlin.draw();
+
+                fonts.g_linssen.draw_text(0, "Perlin Noise in 1d", 120, 20, consts.pico_black);
+                fonts.g_linssen.draw_text(0, "sample random points in [-1,1]", 80, 220, consts.pico_black);
             },
             .PerlinOctaves => |*x| {
                 for (&x.perlins) |*p| {
                     p.draw();
                 }
+                fonts.g_linssen.draw_text(0, "three octaves, each with double", 80, 210, consts.pico_black);
+                fonts.g_linssen.draw_text(0, "the points, half the amplitude", 80, 220, consts.pico_black);
             },
             .MergedPerlin => |*x| {
                 if (x.t < 150) {
@@ -560,12 +578,17 @@ pub const ScenePerlin1d = struct {
                     var perlin_1_and_2 = [2]*AnimatedPerlin{ &x.perlins[1], &x.perlins[2] };
                     x.perlins[0].draw_merged(&perlin_1_and_2, @min(t_merge, 1.0));
                 }
+
+                fonts.g_linssen.draw_text(0, "sum the layers together", 100, 215, consts.pico_black);
             },
             .IntroOsc => |*state| {
                 var tt = @as(f32, @floatFromInt(state.t)) * 0.02;
                 const r = 32;
                 const col = consts.pico_sea;
                 draw_generator(tt, r, r, col);
+
+                //fonts.g_linssen.draw_text(0, "sine wave generated as time increases", 80, 215, consts.pico_black);
+                fonts.g_linssen.draw_text(0, "y = sin(t)", 80, 215, consts.pico_black);
             },
             .OscStackedCentral => |*state| {
                 var tt = @as(f32, @floatFromInt(state.t)) * 0.02;
@@ -616,6 +639,9 @@ pub const ScenePerlin1d = struct {
                     x += 1;
                     prev_y = y;
                 }
+
+                fonts.g_linssen.draw_text(0, "three sine waves stacked", 70, 210, consts.pico_black);
+                fonts.g_linssen.draw_text(0, "each with same period but decreasing amplitudes", 30, 220, consts.pico_black);
             },
             .OscStackedTipTail => |*state| {
                 var t0 = @as(f32, @floatFromInt(state.t)) * 0.02;
@@ -673,6 +699,14 @@ pub const ScenePerlin1d = struct {
                     x += 1;
                     prev_y = y;
                 }
+
+                //fonts.g_linssen.draw_text(0, "y = r0*sin(t + t0) + r1*sin(t + t1) + r2*sin(t + t2)", 70, 210, consts.pico_black);
+                var font_state = fonts.DrawTextState{};
+                var styling = Styling{
+                    .color = consts.pico_black,
+                    .wavy = true,
+                };
+                fonts.g_linssen.draw_text_state(state.t, "y = r0*sin(t + t0) + r1*sin(t + t1) + r2*sin(t + t2)", 30, 210, styling, &font_state);
             },
             .OscStackedMovable => |*state| {
                 var cx = consts.screen_width_f * 0.3;
@@ -724,6 +758,8 @@ pub const ScenePerlin1d = struct {
                     x += 1;
                     prev_y = y;
                 }
+
+                fonts.g_linssen.draw_text(0, "varying the inner oscillator", 70, 210, consts.pico_black);
             },
             .OscLandscapeSingle => |*state| {
                 state.landscape.draw();

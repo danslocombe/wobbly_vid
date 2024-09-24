@@ -6,6 +6,8 @@ const consts = @import("consts.zig");
 const alloc = @import("alloc.zig");
 const utils = @import("utils.zig");
 const game_lib = @import("game.zig");
+const fonts = @import("fonts.zig");
+const sprites = @import("sprites.zig");
 
 fn contains_arg(args: [][:0]u8, needle: []const u8) bool {
     for (args) |arg| {
@@ -28,6 +30,9 @@ pub fn main() anyerror!void {
     _ = args;
     //rl.SetConfigFlags(rl.ConfigFlags.FLAG_VSYNC_HINT);
     //rl.SetExitKey(rl.KeyboardKey.KEY_NULL);
+
+    fonts.load_fonts();
+    sprites.g_sprites = sprites.SpriteManager.init();
 
     game_lib.particle_frames = load_frames("dust.png");
     var framebuffer = rl.LoadRenderTexture(consts.screen_width, consts.screen_height);
