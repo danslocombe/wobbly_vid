@@ -20,6 +20,8 @@ pub var g_screenshake: f32 = 0.0;
 
 pub var particle_frames: []rl.Texture = &.{};
 
+pub const perlin_yscale_base_octaves = consts.screen_height_f * 0.105;
+
 pub const Game = struct {
     t: i32 = 0,
 
@@ -323,7 +325,7 @@ pub const ScenePerlin1d = struct {
                     //}
                     perlins[0].perlin.points = pps;
                     perlins[0].y0 = consts.screen_height_f * 0.2;
-                    perlins[0].yscale = consts.screen_height_f * 0.105;
+                    perlins[0].yscale = perlin_yscale_base_octaves;
                     perlins[0].point_col = consts.pico_red;
 
                     perlins[1] = .{};
@@ -332,7 +334,7 @@ pub const ScenePerlin1d = struct {
                         pps[i] = rand.gen_f32_one_minus_one(.{ 3, i }) * 0.5;
                     }
                     perlins[1].perlin.points = pps;
-                    perlins[1].yscale = consts.screen_height_f * 0.105;
+                    perlins[1].yscale = perlin_yscale_base_octaves;
 
                     perlins[2] = .{};
                     pps = alloc.gpa.allocator().alloc(f32, 9) catch unreachable;
@@ -341,7 +343,7 @@ pub const ScenePerlin1d = struct {
                     }
                     perlins[2].perlin.points = pps;
                     perlins[2].y0 = consts.screen_height_f * 0.8;
-                    perlins[2].yscale = consts.screen_height_f * 0.105;
+                    perlins[2].yscale = perlin_yscale_base_octaves;
                     perlins[2].point_col = consts.pico_green;
 
                     self.state = .{
@@ -377,15 +379,25 @@ pub const ScenePerlin1d = struct {
                     p.tick();
                 }
 
-                if (x.t > 20 and x.t < 150) {
+                if (x.t > 0 and x.t < 150) {
                     x.perlins[0].y0 = utils.dan_lerp(x.perlins[0].y0, consts.screen_height_f * 0.35, 5.0);
                     x.perlins[1].y0 = utils.dan_lerp(x.perlins[1].y0, x.perlins[0].y0, 12.0);
+
+                    const k = 1.5;
+                    x.perlins[0].yscale = perlin_yscale_base_octaves * k;
+                    x.perlins[1].yscale = perlin_yscale_base_octaves * k;
+                    x.perlins[2].yscale = perlin_yscale_base_octaves * k;
                 }
 
                 if (x.t > 400 and x.t < 800) {
                     x.perlins[0].y0 = utils.dan_lerp(x.perlins[1].y0, consts.screen_height_f * 0.5, 5.0);
                     x.perlins[1].y0 = utils.dan_lerp(x.perlins[1].y0, x.perlins[0].y0, 5.0);
                     x.perlins[2].y0 = utils.dan_lerp(x.perlins[2].y0, x.perlins[0].y0, 12.0);
+
+                    const k = 1.5;
+                    x.perlins[0].yscale = perlin_yscale_base_octaves * k;
+                    x.perlins[1].yscale = perlin_yscale_base_octaves * k;
+                    x.perlins[2].yscale = perlin_yscale_base_octaves * k;
                 }
 
                 if (clicked) {
