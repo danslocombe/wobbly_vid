@@ -1,6 +1,7 @@
 const std = @import("std");
 const rl = @import("raylib");
 const consts = @import("consts.zig");
+pub var g_mouse_screen: rl.Vector2 = .{ .x = 0, .y = 0 };
 
 pub fn scale_v2(k: f32, p: rl.Vector2) rl.Vector2 {
     return .{ .x = k * p.x, .y = k * p.y };
@@ -92,12 +93,16 @@ pub const FrameBufferToScreenInfo = struct {
         // HAcky we put here as we have the remapping maths
         // Makes the mouse pos a frame out but should be fine right?
         var mouse_screen = rl.GetMousePosition();
+        var mouse_x: i32 = @intFromFloat((mouse_screen.x - destination.x) / screen_scale);
+        var mouse_y: i32 = @intFromFloat((mouse_screen.y - destination.y) / screen_scale);
+        g_mouse_screen.x = @floatFromInt(mouse_x);
+        g_mouse_screen.y = @floatFromInt(mouse_y);
 
         var source = rl.Rectangle{ .x = 0.0, .y = 0.0, .width = source_width, .height = source_height };
 
         return .{
-            .mouse_x = @intFromFloat((mouse_screen.x - destination.x) / screen_scale),
-            .mouse_y = @intFromFloat((mouse_screen.y - destination.y) / screen_scale),
+            .mouse_x = mouse_x,
+            .mouse_y = mouse_y,
             .source = source,
             .destination = destination,
         };

@@ -15,7 +15,6 @@ const camera_max_x = 500;
 const camera_min_y = -100;
 const camera_max_y = 500;
 
-pub var g_draw_wireframe = false;
 pub var g_shader_noise_dump: f32 = 0.0;
 
 pub var particle_frames: []rl.Texture = &.{};
@@ -67,11 +66,21 @@ pub const Game = struct {
             //var camer
             //var target_camera_x = self.player.pos.x - consts.screen_width_f * 0.5;
             //var target_camera_y = self.player.pos.y - consts.screen_height_f * 0.5;
-            const target_camera_x = 0.0;
-            const target_camera_y = 0.0;
+            var target_camera_x: f32 = 0.0;
+            var target_camera_y: f32 = 0.0;
+
+            var dx = (utils.g_mouse_screen.x - consts.screen_width_f * 0.5);
+            var dy = (utils.g_mouse_screen.y - consts.screen_height_f * 0.5);
+            //std.debug.print("g_mouse_screen: {d} {d}, diff {d} {d}\n", .{ utils.g_mouse_screen.x, utils.g_mouse_screen.y, dx, dy });
+
+            target_camera_x = dx * 0.04; // + consts.screen_width_f * 0.5;
+            target_camera_y = dy * 0.04; // + consts.screen_height_f * 0.5;
+            //target_camera_x = (mouse_pos.x - consts.screen_width_f * 0.5) * 0.1; // + consts.screen_width_f * 0.5;
+            //target_camera_y = (mouse_pos.y - consts.screen_height_f * 0.5) * 0.1; // + consts.screen_height_f * 0.5;
+
             //var k = 1500 / (1 + dt);
             //var k = 100 * dt_norm;
-            const k = 100;
+            const k = 10;
             self.camera_x = utils.dan_lerp(self.camera_x, target_camera_x, k);
             self.camera_y = utils.dan_lerp(self.camera_y, target_camera_y, k);
 
@@ -353,6 +362,7 @@ pub const ScenePerlin1d = struct {
 
                 if (x.t > 1200 or clicked) {
                     self.state = .{ .IntroOsc = .{ .t = 0 } };
+                    g_shader_noise_dump = 0.5;
                 }
             },
             .IntroOsc => |*x| {
@@ -402,17 +412,23 @@ pub const ScenePerlin1d = struct {
                 const col = consts.pico_sea;
                 var t0 = tt;
                 var t1 = tt + 0.25 * 3.141;
-                var t2 = tt + 1.35 * 3.141;
-                draw_generator(tt, r, r, col);
+                var t2 = tt + 0.55 * 3.141;
+                const osc_1_start = 60;
+                const osc_2_start = 120;
+                const joined_view = 200;
 
-                if (state.t > 60) {
+                if (state.t < joined_view) {
+                    draw_generator(tt, r, r, col);
+                }
+
+                if (state.t > osc_1_start and state.t < joined_view) {
                     draw_generator(t1, r * 0.5, r, consts.pico_red);
                 }
-                if (state.t > 120) {
+                if (state.t > osc_2_start and state.t < joined_view) {
                     draw_generator(t2, r * 0.25, r, consts.pico_green);
                 }
 
-                if (state.t > 180) {
+                if (state.t > joined_view) {
                     // Stacked
                     var angle0 = t0;
                     var angle1 = t1;
@@ -423,29 +439,31 @@ pub const ScenePerlin1d = struct {
 
                     var end_0_x = cx + std.math.cos(angle0) * r;
                     var end_0_y = cy + std.math.sin(angle0) * r;
-                    //utils.draw_arrow(@intFromFloat(cx), @intFromFloat(cy), @intFromFloat(end_0_x), @intFromFloat(end_0_y), consts.pico_blue, 10);
+                    rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), r, consts.pico_sea);
+                    utils.draw_arrow(@intFromFloat(cx), @intFromFloat(cy), @intFromFloat(end_0_x), @intFromFloat(end_0_y), consts.pico_blue, 10);
 
                     var end_1_x = end_0_x + std.math.cos(angle1) * r * 0.5;
                     var end_1_y = end_0_y + std.math.sin(angle1) * r * 0.5;
-                    utils.draw_arrow(@intFromFloat(end_0_x), @intFromFloat(end_0_y), @intFromFloat(end_1_x), @intFromFloat(end_1_y), consts.pico_red, 4);
+                    rl.DrawCircleLines(@intFromFloat(end_0_x), @intFromFloat(end_0_y), r * 0.5, consts.pico_red);
+                    //utils.draw_arrow(@intFromFloat(end_0_x), @intFromFloat(end_0_y), @intFromFloat(end_1_x), @intFromFloat(end_1_y), consts.pico_red, 4);
+                    utils.draw_arrow(@intFromFloat(end_0_x), @intFromFloat(end_0_y), @intFromFloat(end_1_x), @intFromFloat(end_1_y), consts.pico_blue, 4);
 
                     var end_2_x = end_1_x + std.math.cos(angle2) * r * 0.25;
                     var end_2_y = end_1_y + std.math.sin(angle2) * r * 0.25;
-                    utils.draw_arrow(@intFromFloat(end_1_x), @intFromFloat(end_1_y), @intFromFloat(end_2_x), @intFromFloat(end_2_y), consts.pico_green, 3);
+                    rl.DrawCircleLines(@intFromFloat(end_1_x), @intFromFloat(end_1_y), r * 0.25, consts.pico_green);
+                    //utils.draw_arrow(@intFromFloat(end_1_x), @intFromFloat(end_1_y), @intFromFloat(end_2_x), @intFromFloat(end_2_y), consts.pico_green, 3);
+                    utils.draw_arrow(@intFromFloat(end_1_x), @intFromFloat(end_1_y), @intFromFloat(end_2_x), @intFromFloat(end_2_y), consts.pico_blue, 3);
 
                     var p = .{ .x = end_2_x, .y = end_2_y };
                     var p_dotted_end = p;
-                    p_dotted_end.x = cx + r;
+                    p_dotted_end.x = cx + r * 1.5;
                     utils.draw_broken_line(p, p_dotted_end, 2.0, 2.0, consts.pico_blue);
 
-                    var x0: i32 = @intFromFloat(cx + r);
+                    var x0: i32 = @intFromFloat(p_dotted_end.x);
                     var x_end: i32 = @intFromFloat(consts.screen_width_f * 0.85);
                     var x = x0;
                     var prev_y: f32 = 0;
                     while (x < x_end) {
-                        angle0 -= 0.02;
-                        angle1 -= 0.02;
-                        angle2 -= 0.02;
                         var y_n: f32 = 0;
                         // Sum all the things
                         y_n += std.math.sin(angle0);
@@ -457,6 +475,9 @@ pub const ScenePerlin1d = struct {
                             rl.DrawLine(x - 1, @intFromFloat(prev_y), x, @intFromFloat(y), consts.pico_blue);
                         }
 
+                        angle0 -= 0.02;
+                        angle1 -= 0.02;
+                        angle2 -= 0.02;
                         x += 1;
                         prev_y = y;
                     }
@@ -615,7 +636,7 @@ pub fn draw_generator(theta: f32, r: f32, r_big: f32, col: rl.Color) void {
 
     var p = .{ .x = px, .y = py };
     var p_dotted_end = p;
-    p_dotted_end.x = cx + r_big;
+    p_dotted_end.x = cx + r_big * 1.5;
     utils.draw_broken_line(p, p_dotted_end, 2.0, 2.0, col);
 
     var x0: i32 = @intFromFloat(p_dotted_end.x);
