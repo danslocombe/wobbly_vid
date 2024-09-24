@@ -278,7 +278,8 @@ pub const ScenePerlin1DState = union(enum) {
     OscStackedCentral: struct { t: i32 },
     OscStackedTipTail: struct { t: i32 },
     OscStackedMovable: struct { t: i32, small_offset: f32 = 0 },
-    OscLandscape: struct { t: i32 },
+    OscLandscapeSingle: struct { t: i32, landscape: Landscape },
+    OscLandscape: struct { t: i32, landscapes: []Landscape },
     End: void,
 };
 
@@ -326,16 +327,16 @@ pub const ScenePerlin1d = struct {
                     perlins[0].point_col = consts.pico_red;
 
                     perlins[1] = .{};
-                    pps = alloc.gpa.allocator().alloc(f32, 6) catch unreachable;
-                    for (0..6) |i| {
-                        pps[i] = rand.gen_f32_one_minus_one(.{ 10, i }) * 0.5;
+                    pps = alloc.gpa.allocator().alloc(f32, 5) catch unreachable;
+                    for (0..5) |i| {
+                        pps[i] = rand.gen_f32_one_minus_one(.{ 3, i }) * 0.5;
                     }
                     perlins[1].perlin.points = pps;
                     perlins[1].yscale = consts.screen_height_f * 0.105;
 
                     perlins[2] = .{};
-                    pps = alloc.gpa.allocator().alloc(f32, 12) catch unreachable;
-                    for (0..12) |i| {
+                    pps = alloc.gpa.allocator().alloc(f32, 9) catch unreachable;
+                    for (0..9) |i| {
                         pps[i] = rand.gen_f32_one_minus_one(.{ 2, i }) * 0.25;
                     }
                     perlins[2].perlin.points = pps;
@@ -435,16 +436,80 @@ pub const ScenePerlin1d = struct {
                 //}
 
                 if (clicked) {
-                    self.state = .{ .OscLandscape = .{
+                    self.state = .{ .OscLandscapeSingle = .{
                         .t = 0,
+                        .landscape = .{},
                     } };
 
                     g_shader_noise_dump = 0.5;
                     g_screenshake = 1.0;
                 }
             },
+            .OscLandscapeSingle => |*x| {
+                x.t += 1;
+                x.landscape.tick();
+                if (clicked) {
+                    var rand = FroggyRand.init(1);
+                    var landscapes = alloc.gpa.allocator().alloc(Landscape, 3) catch unreachable;
+                    var r: f32 = 18;
+                    landscapes[0] = .{
+                        .y0 = consts.screen_height_f * 0.2,
+                        .point_col = consts.pico_red,
+                        .r = r,
+                    };
+
+                    var offsets_1 = alloc.gpa.allocator().alloc(f32, 5) catch unreachable;
+                    for (0..5) |i| {
+                        offsets_1[i] = rand.gen_angle(.{ 0, i });
+                    }
+
+                    landscapes[1] = .{
+                        .offsets = offsets_1,
+                        .y0 = consts.screen_height_f * 0.5,
+                        .r = r * 0.5,
+                    };
+
+                    var offsets_2 = alloc.gpa.allocator().alloc(f32, 9) catch unreachable;
+                    for (0..9) |i| {
+                        offsets_2[i] = rand.gen_angle(.{ 0, i });
+                    }
+
+                    landscapes[2] = .{
+                        .offsets = offsets_2,
+                        .y0 = consts.screen_height_f * 0.8,
+                        .point_col = consts.pico_green,
+                        .r = r * 0.25,
+                    };
+
+                    self.state = .{ .OscLandscape = .{
+                        .t = 0,
+                        .landscapes = landscapes,
+                    } };
+                }
+            },
             .OscLandscape => |*x| {
                 x.t += 1;
+                for (x.landscapes) |*landscape| {
+                    landscape.tick();
+                }
+
+                if (x.t > 60 and x.t < 150) {
+                    x.landscapes[0].draw_circles = false;
+                    x.landscapes[1].draw_circles = false;
+
+                    x.landscapes[0].y0 = utils.dan_lerp(x.landscapes[0].y0, consts.screen_height_f * 0.35, 5.0);
+                    x.landscapes[1].y0 = utils.dan_lerp(x.landscapes[1].y0, x.landscapes[0].y0, 12.0);
+                }
+
+                if (x.t > 400 and x.t < 800) {
+                    x.landscapes[0].draw_circles = false;
+                    x.landscapes[1].draw_circles = false;
+                    x.landscapes[2].draw_circles = false;
+
+                    x.landscapes[0].y0 = utils.dan_lerp(x.landscapes[1].y0, consts.screen_height_f * 0.5, 5.0);
+                    x.landscapes[1].y0 = utils.dan_lerp(x.landscapes[1].y0, x.landscapes[0].y0, 5.0);
+                    x.landscapes[2].y0 = utils.dan_lerp(x.landscapes[2].y0, x.landscapes[0].y0, 12.0);
+                }
             },
             else => {
                 // TODO
@@ -648,67 +713,26 @@ pub const ScenePerlin1d = struct {
                     prev_y = y;
                 }
             },
+            .OscLandscapeSingle => |*state| {
+                state.landscape.draw();
+            },
             .OscLandscape => |*state| {
-                var tt = @as(f32, @floatFromInt(state.t)) * 0.02;
-
-                const r = 12;
-                const arrow_size = 5;
-
-                var generators: [3]rl.Vector2 = undefined;
-
-                const cx0 = consts.screen_width_f * 0.3;
-                const ww = consts.screen_width_f * 0.4;
-                var cy = consts.screen_height_f * 0.5;
-
-                rl.DrawLineV(.{ .x = cx0, .y = cy }, .{ .x = cx0 + ww, .y = cy }, consts.pico_blue);
-
-                var cx = cx0;
-                var t0 = tt;
-                rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), r, consts.pico_blue);
-                var a0_x = cx + std.math.cos(t0) * r;
-                var a0_y = cy + std.math.sin(t0) * r;
-                utils.draw_arrow_f(cx, cy, a0_x, a0_y, consts.pico_sea, arrow_size);
-                //utils.draw_broken_line(.{ .x = a0_x, .y = a0_y }, .{ .x = cx, .y = a0_y }, 1.0, 1.0, consts.pico_blue);
-                var x_norm = (cx - cx0) / ww;
-                generators[0] = .{ .x = x_norm, .y = std.math.sin(t0) };
-
-                cx = consts.screen_width_f * 0.5;
-                var t1 = tt + 0.2 * 3.141;
-                rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), r, consts.pico_blue);
-                var a1_x = cx + std.math.cos(t1) * r;
-                var a1_y = cy + std.math.sin(t1) * r;
-                utils.draw_arrow_f(cx, cy, a1_x, a1_y, consts.pico_sea, arrow_size);
-                //utils.draw_broken_line(.{ .x = a1_x, .y = a1_y }, .{ .x = cx, .y = a1_y }, 1.0, 1.0, consts.pico_blue);
-                x_norm = (cx - cx0) / ww;
-                generators[1] = .{ .x = x_norm, .y = std.math.sin(t1) };
-
-                cx = consts.screen_width_f * 0.7;
-                var t2 = tt + 0.8 * 3.141;
-                rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), r, consts.pico_blue);
-                var a2_x = cx + std.math.cos(t2) * r;
-                var a2_y = cy + std.math.sin(t2) * r;
-                utils.draw_arrow_f(cx, cy, a2_x, a2_y, consts.pico_sea, arrow_size);
-                //utils.draw_broken_line(.{ .x = a2_x, .y = a2_y }, .{ .x = cx, .y = a2_y }, 1.0, 1.0, consts.pico_blue);
-                x_norm = (cx - cx0) / ww;
-                generators[2] = .{ .x = x_norm, .y = std.math.sin(t2) };
-
-                //var x_end: i32 = @intFromFloat(consts.screen_width_f * 0.7);
-                //var x: i32 = cx0;
-                var x0: i32 = @intFromFloat(a0_x);
-                var x: i32 = x0;
-                var x_end: i32 = @intFromFloat(a2_x);
-                var prev_y: f32 = 0;
-
-                while (x < x_end) {
-                    var x_n = (@as(f32, @floatFromInt(x)) - cx0) / ww;
-                    var y = cy + interp_sample_closest(x_n, &generators) * r;
-
-                    if (x != x0) {
-                        rl.DrawLine(x - 1, @intFromFloat(prev_y), x, @intFromFloat(y), consts.pico_sea);
+                if (state.t < 60) {
+                    for (state.landscapes) |*landscape| {
+                        landscape.draw();
                     }
-
-                    prev_y = y;
-                    x += 1;
+                } else if (state.t < 400) {
+                    var xx = [_]*Landscape{&state.landscapes[1]};
+                    state.landscapes[0].draw();
+                    state.landscapes[1].draw();
+                    state.landscapes[0].draw_merged(&xx);
+                    state.landscapes[2].draw();
+                } else {
+                    var xx = [_]*Landscape{ &state.landscapes[1], &state.landscapes[2] };
+                    state.landscapes[0].draw();
+                    state.landscapes[1].draw();
+                    state.landscapes[2].draw();
+                    state.landscapes[0].draw_merged(&xx);
                 }
             },
             else => {
@@ -914,3 +938,168 @@ pub fn interp_sample_closest(x: f32, generators: []const rl.Vector2) f32 {
     var frac = (x - x_before) / (x_next - x_before);
     return utils.straight_lerp(generators[prev].y, generators[i].y, frac);
 }
+
+pub const Landscape = struct {
+    t: f32 = 0,
+    offsets: []const f32 = &.{ 0.0, 0.25 * 3.141, 0.55 * 3.141 },
+    y0: f32 = consts.screen_height_f * 0.5,
+
+    point_col: rl.Color = consts.pico_sea,
+    r: f32 = 12,
+
+    draw_circles: bool = true,
+
+    pub fn tick(self: *Landscape) void {
+        self.t += 0.02;
+    }
+
+    pub fn draw(self: *Landscape) void {
+        const arrow_size = 5;
+
+        var generators: []rl.Vector2 = alloc.temp_alloc.allocator().alloc(rl.Vector2, self.offsets.len) catch unreachable;
+
+        const border_x = consts.screen_width_f * 0.3;
+        const cx0 = border_x;
+        const ww = consts.screen_width_f - (2 * border_x);
+
+        var cy = self.y0;
+        var tt = self.t;
+        var r = self.r;
+
+        rl.DrawLineV(.{ .x = cx0, .y = cy }, .{ .x = cx0 + ww, .y = cy }, consts.pico_blue);
+
+        for (self.offsets, 0..) |offset, i| {
+            var i_n = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(self.offsets.len - 1));
+            var cx = border_x + ww * i_n;
+
+            var t = tt + offset;
+            if (self.draw_circles) {
+                rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), r, consts.pico_blue);
+            }
+            var a_x = cx + std.math.cos(t) * r;
+            var a_y = cy + std.math.sin(t) * r;
+            utils.draw_arrow_f(cx, cy, a_x, a_y, self.point_col, arrow_size);
+            var x_norm = (cx - cx0) / ww;
+            generators[i] = .{ .x = x_norm, .y = std.math.sin(t) };
+        }
+
+        //cx = consts.screen_width_f * 0.5;
+        //var t1 = tt + 0.2 * 3.141;
+        //rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), r, consts.pico_blue);
+        //var a1_x = cx + std.math.cos(t1) * r;
+        //var a1_y = cy + std.math.sin(t1) * r;
+        //utils.draw_arrow_f(cx, cy, a1_x, a1_y, consts.pico_sea, arrow_size);
+        ////utils.draw_broken_line(.{ .x = a1_x, .y = a1_y }, .{ .x = cx, .y = a1_y }, 1.0, 1.0, consts.pico_blue);
+        //x_norm = (cx - cx0) / ww;
+        //generators[1] = .{ .x = x_norm, .y = std.math.sin(t1) };
+
+        //cx = consts.screen_width_f * 0.7;
+        //var t2 = tt + 0.8 * 3.141;
+        //rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), r, consts.pico_blue);
+        //var a2_x = cx + std.math.cos(t2) * r;
+        //var a2_y = cy + std.math.sin(t2) * r;
+        //utils.draw_arrow_f(cx, cy, a2_x, a2_y, consts.pico_sea, arrow_size);
+        ////utils.draw_broken_line(.{ .x = a2_x, .y = a2_y }, .{ .x = cx, .y = a2_y }, 1.0, 1.0, consts.pico_blue);
+        //x_norm = (cx - cx0) / ww;
+        //generators[2] = .{ .x = x_norm, .y = std.math.sin(t2) };
+
+        //var x_end: i32 = @intFromFloat(consts.screen_width_f * 0.7);
+        //var x: i32 = cx0;
+
+        var a0_x = border_x + std.math.cos(tt + self.offsets[0]) * r;
+        var alast_x = border_x + ww + std.math.cos(tt + self.offsets[self.offsets.len - 1]) * r;
+
+        var x0: i32 = @intFromFloat(a0_x);
+        var x: i32 = x0;
+        var x_end: i32 = @intFromFloat(alast_x);
+        var prev_y: f32 = 0;
+
+        while (x < x_end) {
+            var x_n = (@as(f32, @floatFromInt(x)) - cx0) / ww;
+            var y = cy + self.sample_with_generators(generators, x_n) * r;
+
+            if (x != x0) {
+                if (!self.draw_circles) {
+                    // Draw dotted
+                    if (@mod(x, 2) == 0) {
+                        // Do nothing
+                    } else {
+                        utils.draw_broken_line_i(x - 1, @intFromFloat(prev_y), x, @intFromFloat(y), 1.0, 1.0, self.point_col);
+                    }
+                } else {
+                    rl.DrawLine(x - 1, @intFromFloat(prev_y), x, @intFromFloat(y), self.point_col);
+                }
+            }
+
+            prev_y = y;
+            x += 1;
+        }
+    }
+
+    pub fn sample_with_generators(self: *Landscape, generators: []const rl.Vector2, t: f32) f32 {
+        _ = self;
+        return interp_sample_closest(std.math.clamp(t, 0.0, 1.0), generators);
+    }
+
+    pub fn get_generators(self: *Landscape) []const rl.Vector2 {
+        // @Cleanup ugh
+        var generators: []rl.Vector2 = alloc.temp_alloc.allocator().alloc(rl.Vector2, self.offsets.len) catch unreachable;
+
+        const border_x = consts.screen_width_f * 0.3;
+        const cx0 = border_x;
+        const ww = consts.screen_width_f - (2 * border_x);
+
+        var tt = self.t;
+
+        for (self.offsets, 0..) |offset, i| {
+            var i_n = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(self.offsets.len - 1));
+            var cx = border_x + ww * i_n;
+            var t = tt + offset;
+            var x_norm = (cx - cx0) / ww;
+            generators[i] = .{ .x = x_norm, .y = std.math.sin(t) };
+        }
+
+        return generators;
+    }
+
+    pub fn draw_merged(self: *Landscape, others: []*Landscape) void {
+        var border_x = consts.screen_width_f * 0.3;
+        var border_x_r = consts.screen_width_f * 0.7;
+        var x0: i32 = @intFromFloat(border_x);
+        var x1: i32 = @intFromFloat(border_x_r);
+        var i = x0;
+        var prev: f32 = 0.0;
+
+        var self_generators = self.get_generators();
+        var other_generators = alloc.temp_alloc.allocator().alloc([]const rl.Vector2, others.len) catch unreachable;
+        for (others, 0..) |other, ii| {
+            other_generators[ii] = other.get_generators();
+        }
+
+        while (i < x1) {
+            var x0_f: f32 = @floatFromInt(x0);
+            var x1_f: f32 = @floatFromInt(x1);
+            var t = (@as(f32, @floatFromInt(i)) - x0_f) / (x1_f - x0_f);
+
+            //if (t_merge < i_n) {
+            //break;
+            //}
+
+            var sample = self.sample_with_generators(self_generators, t) * self.r;
+            for (others, 0..) |other, ii| {
+                var other_sample = other.sample_with_generators(other_generators[ii], t) * other.r;
+                sample += other_sample;
+            }
+
+            var py = self.y0 + sample;
+
+            //rl.DrawPixel(i, @intFromFloat(py), consts.pico_blue);
+            if (i > x0) {
+                rl.DrawLine(i - 1, @intFromFloat(prev), i, @intFromFloat(py), consts.pico_blue);
+            }
+
+            i += 1;
+            prev = py;
+        }
+    }
+};
