@@ -146,3 +146,30 @@ pub fn draw_broken_line(p0: rl.Vector2, p1: rl.Vector2, stripe_off_len: f32, str
         p = pnext;
     }
 }
+
+pub fn draw_arrow_f(start_x: f32, start_y: f32, end_x: f32, end_y: f32, col: rl.Color, arrow_size: i32) void {
+    draw_arrow(@intFromFloat(start_x), @intFromFloat(start_y), @intFromFloat(end_x), @intFromFloat(end_y), col, arrow_size);
+}
+
+pub fn draw_arrow(start_x: i32, start_y: i32, end_x: i32, end_y: i32, col: rl.Color, arrow_size: i32) void {
+    if (start_x == end_x and start_y == end_y) {
+        return;
+    }
+
+    rl.DrawLine(start_x, start_y, end_x, end_y, col);
+
+    var dx = end_x - start_x;
+    var dy = end_y - start_y;
+
+    var angle = std.math.atan2(f32, @as(f32, @floatFromInt(dy)), @as(f32, @floatFromInt(dx))) + std.math.pi;
+    var arrowhead_angle: f32 = std.math.pi * 0.125;
+
+    var l: f32 = @floatFromInt(arrow_size);
+    var xx = end_x + @as(i32, @intFromFloat(l * std.math.cos(angle + arrowhead_angle)));
+    var yy = end_y + @as(i32, @intFromFloat(l * std.math.sin(angle + arrowhead_angle)));
+    rl.DrawLine(end_x, end_y, xx, yy, col);
+
+    xx = end_x + @as(i32, @intFromFloat(l * std.math.cos(angle - arrowhead_angle)));
+    yy = end_y + @as(i32, @intFromFloat(l * std.math.sin(angle - arrowhead_angle)));
+    rl.DrawLine(end_x, end_y, xx, yy, col);
+}

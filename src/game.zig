@@ -250,7 +250,7 @@ pub const ScenePerlin1DState = union(enum) {
     SinglePerlin: struct { t: i32, perlin: AnimatedPerlin },
     PerlinOctaves: struct { t: i32, perlins: [3]AnimatedPerlin },
     MergedPerlin: struct { t: i32, perlins: [3]AnimatedPerlin },
-    MergedPerlin: struct { t: i32, perlins: [3]AnimatedPerlin },
+    IntroOsc: struct { t: i32 },
     End: void,
 };
 
@@ -352,8 +352,11 @@ pub const ScenePerlin1d = struct {
                 }
 
                 if (x.t > 1200 or clicked) {
-                    self.state = Wrapping{};
+                    self.state = .{ .IntroOsc = .{ .t = 0 } };
                 }
+            },
+            .IntroOsc => |*x| {
+                x.t += 1;
             },
             else => {
                 // TODO
@@ -391,6 +394,72 @@ pub const ScenePerlin1d = struct {
                     var t_merge = @as(f32, @floatFromInt(x.t - 400)) / 100.0;
                     var perlin_1_and_2 = [2]*AnimatedPerlin{ &x.perlins[1], &x.perlins[2] };
                     x.perlins[0].draw_merged(&perlin_1_and_2, @min(t_merge, 1.0));
+                }
+            },
+            .IntroOsc => |*state| {
+                var tt = @as(f32, @floatFromInt(state.t)) * 0.02;
+                const r = 32;
+                const col = consts.pico_sea;
+                var t0 = tt;
+                var t1 = tt + 0.25 * 3.141;
+                var t2 = tt + 1.35 * 3.141;
+                draw_generator(tt, r, r, col);
+
+                if (state.t > 60) {
+                    draw_generator(t1, r * 0.5, r, consts.pico_red);
+                }
+                if (state.t > 120) {
+                    draw_generator(t2, r * 0.25, r, consts.pico_green);
+                }
+
+                if (state.t > 180) {
+                    // Stacked
+                    var angle0 = t0;
+                    var angle1 = t1;
+                    var angle2 = t2;
+
+                    var cx = consts.screen_width_f * 0.3;
+                    var cy = consts.screen_height_f * 0.5;
+
+                    var end_0_x = cx + std.math.cos(angle0) * r;
+                    var end_0_y = cy + std.math.sin(angle0) * r;
+                    //utils.draw_arrow(@intFromFloat(cx), @intFromFloat(cy), @intFromFloat(end_0_x), @intFromFloat(end_0_y), consts.pico_blue, 10);
+
+                    var end_1_x = end_0_x + std.math.cos(angle1) * r * 0.5;
+                    var end_1_y = end_0_y + std.math.sin(angle1) * r * 0.5;
+                    utils.draw_arrow(@intFromFloat(end_0_x), @intFromFloat(end_0_y), @intFromFloat(end_1_x), @intFromFloat(end_1_y), consts.pico_red, 4);
+
+                    var end_2_x = end_1_x + std.math.cos(angle2) * r * 0.25;
+                    var end_2_y = end_1_y + std.math.sin(angle2) * r * 0.25;
+                    utils.draw_arrow(@intFromFloat(end_1_x), @intFromFloat(end_1_y), @intFromFloat(end_2_x), @intFromFloat(end_2_y), consts.pico_green, 3);
+
+                    var p = .{ .x = end_2_x, .y = end_2_y };
+                    var p_dotted_end = p;
+                    p_dotted_end.x = cx + r;
+                    utils.draw_broken_line(p, p_dotted_end, 2.0, 2.0, consts.pico_blue);
+
+                    var x0: i32 = @intFromFloat(cx + r);
+                    var x_end: i32 = @intFromFloat(consts.screen_width_f * 0.85);
+                    var x = x0;
+                    var prev_y: f32 = 0;
+                    while (x < x_end) {
+                        angle0 -= 0.02;
+                        angle1 -= 0.02;
+                        angle2 -= 0.02;
+                        var y_n: f32 = 0;
+                        // Sum all the things
+                        y_n += std.math.sin(angle0);
+                        y_n += std.math.sin(angle1) * 0.5;
+                        y_n += std.math.sin(angle2) * 0.25;
+                        var y = cy + y_n * r;
+
+                        if (x != x0) {
+                            rl.DrawLine(x - 1, @intFromFloat(prev_y), x, @intFromFloat(y), consts.pico_blue);
+                        }
+
+                        x += 1;
+                        prev_y = y;
+                    }
                 }
             },
             else => {
@@ -533,3 +602,37 @@ pub const AnimatedPerlin = struct {
         }
     }
 };
+
+pub fn draw_generator(theta: f32, r: f32, r_big: f32, col: rl.Color) void {
+    var cx = consts.screen_width_f * 0.3;
+    var cy = consts.screen_height_f * 0.5;
+    rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), r, col);
+
+    var px = cx + r * std.math.cos(theta);
+    var py = cy + r * std.math.sin(theta);
+    var arrow_size = 4 + 6 * r / r_big;
+    utils.draw_arrow_f(cx, cy, px, py, col, @intFromFloat(arrow_size));
+
+    var p = .{ .x = px, .y = py };
+    var p_dotted_end = p;
+    p_dotted_end.x = cx + r_big;
+    utils.draw_broken_line(p, p_dotted_end, 2.0, 2.0, col);
+
+    var x0: i32 = @intFromFloat(p_dotted_end.x);
+    var x_end: i32 = @intFromFloat(consts.screen_width_f * 0.85);
+
+    var x = x0;
+    var prev_y: f32 = 0;
+    var angle = theta;
+    while (x < x_end) {
+        angle -= 0.02;
+        var y = cy + std.math.sin(angle) * r;
+
+        if (x != x0) {
+            rl.DrawLine(x - 1, @intFromFloat(prev_y), x, @intFromFloat(y), col);
+        }
+
+        x += 1;
+        prev_y = y;
+    }
+}
