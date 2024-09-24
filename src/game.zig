@@ -16,6 +16,7 @@ const camera_min_y = -100;
 const camera_max_y = 500;
 
 pub var g_shader_noise_dump: f32 = 0.0;
+pub var g_screenshake: f32 = 0.0;
 
 pub var particle_frames: []rl.Texture = &.{};
 
@@ -24,6 +25,8 @@ pub const Game = struct {
 
     camera_x: f32 = 0,
     camera_y: f32 = 0,
+    camera_x_base: f32 = 0,
+    camera_y_base: f32 = 0,
     camera_zoom: f32 = 1,
     screenshake_t: f32 = 0,
 
@@ -81,11 +84,16 @@ pub const Game = struct {
             //var k = 1500 / (1 + dt);
             //var k = 100 * dt_norm;
             const k = 10;
-            self.camera_x = utils.dan_lerp(self.camera_x, target_camera_x, k);
-            self.camera_y = utils.dan_lerp(self.camera_y, target_camera_y, k);
+            self.camera_x_base = utils.dan_lerp(self.camera_x_base, target_camera_x, k);
+            self.camera_y_base = utils.dan_lerp(self.camera_y_base, target_camera_y, k);
 
-            self.camera_x = std.math.clamp(self.camera_x, camera_min_x, camera_max_x);
-            self.camera_y = std.math.clamp(self.camera_y, camera_min_y, camera_max_y);
+            var screenshake_mag = g_screenshake * 3;
+            g_screenshake *= 0.88;
+
+            var screenshake_angle = FroggyRand.init(self.t).gen_angle(0);
+
+            self.camera_x = std.math.clamp(self.camera_x_base + std.math.cos(screenshake_angle) * screenshake_mag, camera_min_x, camera_max_x);
+            self.camera_y = std.math.clamp(self.camera_y_base + std.math.sin(screenshake_angle) * screenshake_mag, camera_min_y, camera_max_y);
 
             //var player_speed_2 = self.player.vel.x * self.player.vel.x + self.player.vel.y * self.player.vel.y;
             //var player_speed = std.math.sqrt(player_speed_2);
@@ -118,6 +126,13 @@ pub const Game = struct {
 
         camera.Begin();
         rl.ClearBackground(consts.pico_white);
+
+        // Math dots
+        for (0..consts.screen_width / 16) |x| {
+            for (0..consts.screen_height / 16) |y| {
+                rl.DrawPixel(@intCast(x * 16), @as(i32, @intCast(y * 16)) - 8, consts.pico_grey);
+            }
+        }
 
         self.scene_1.draw();
 
@@ -278,11 +293,13 @@ pub const ScenePerlin1d = struct {
         }
 
         var clicked = rl.IsMouseButtonPressed(rl.MouseButton.MOUSE_BUTTON_LEFT) or rl.IsKeyPressed(rl.KeyboardKey.KEY_F);
+        var space_down = rl.IsKeyDown(rl.KeyboardKey.KEY_SPACE);
         switch (self.state) {
             .Intro => |*x| {
                 x.t += 1;
-                if (x.t > 300 or clicked) {
+                if (clicked) {
                     g_shader_noise_dump = 0.5;
+                    g_screenshake = 1.0;
                     self.state = .{ .SinglePerlin = .{
                         .t = 0,
                         .perlin = .{},
@@ -292,7 +309,7 @@ pub const ScenePerlin1d = struct {
             .SinglePerlin => |*x| {
                 x.t += 1;
                 x.perlin.tick();
-                if (x.t > 300 or clicked) {
+                if (clicked) {
                     var rand = FroggyRand.init(0);
                     var perlins: [3]AnimatedPerlin = undefined;
                     perlins[0] = .{};
@@ -340,7 +357,7 @@ pub const ScenePerlin1d = struct {
                     p.tick();
                 }
 
-                if (x.t > 600 or clicked) {
+                if (clicked) {
                     for (&x.perlins) |*p| {
                         p.t = 600;
                     }
@@ -370,32 +387,41 @@ pub const ScenePerlin1d = struct {
                     x.perlins[2].y0 = utils.dan_lerp(x.perlins[2].y0, x.perlins[0].y0, 12.0);
                 }
 
-                if (x.t > 1200 or clicked) {
+                if (clicked) {
                     self.state = .{ .IntroOsc = .{ .t = 0 } };
                     g_shader_noise_dump = 0.5;
+                    g_screenshake = 1.0;
                 }
             },
             .IntroOsc => |*x| {
-                x.t += 1;
-                if (x.t > 500 or clicked) {
+                if (!space_down) {
+                    x.t += 1;
+                }
+                if (clicked) {
                     // Carry over t so that the animations line up
                     self.state = .{ .OscStackedCentral = .{ .t = x.t } };
                 }
             },
             .OscStackedCentral => |*x| {
-                x.t += 1;
-                if (x.t > 1000 or clicked) {
+                if (!space_down) {
+                    x.t += 1;
+                }
+                if (clicked) {
                     self.state = .{ .OscStackedTipTail = .{ .t = x.t } };
                 }
             },
             .OscStackedTipTail => |*x| {
-                x.t += 1;
-                if (x.t > 2000 or clicked) {
+                if (!space_down) {
+                    x.t += 1;
+                }
+                if (clicked) {
                     self.state = .{ .OscStackedMovable = .{ .t = x.t } };
                 }
             },
             .OscStackedMovable => |*x| {
-                x.t += 1;
+                if (!space_down) {
+                    x.t += 1;
+                }
 
                 //if (rl.IsMouseButtonDown(rl.MouseButton.MOUSE_BUTTON_LEFT)) {
                 //x.small_offset = utils.g_mouse_screen.x / 60;
@@ -412,6 +438,9 @@ pub const ScenePerlin1d = struct {
                     self.state = .{ .OscLandscape = .{
                         .t = 0,
                     } };
+
+                    g_shader_noise_dump = 0.5;
+                    g_screenshake = 1.0;
                 }
             },
             .OscLandscape => |*x| {
@@ -629,13 +658,17 @@ pub const ScenePerlin1d = struct {
 
                 const cx0 = consts.screen_width_f * 0.3;
                 const ww = consts.screen_width_f * 0.4;
+                var cy = consts.screen_height_f * 0.5;
+
+                rl.DrawLineV(.{ .x = cx0, .y = cy }, .{ .x = cx0 + ww, .y = cy }, consts.pico_blue);
+
                 var cx = cx0;
-                var cy = consts.screen_height_f * 0.4;
                 var t0 = tt;
                 rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), r, consts.pico_blue);
                 var a0_x = cx + std.math.cos(t0) * r;
                 var a0_y = cy + std.math.sin(t0) * r;
                 utils.draw_arrow_f(cx, cy, a0_x, a0_y, consts.pico_sea, arrow_size);
+                //utils.draw_broken_line(.{ .x = a0_x, .y = a0_y }, .{ .x = cx, .y = a0_y }, 1.0, 1.0, consts.pico_blue);
                 var x_norm = (cx - cx0) / ww;
                 generators[0] = .{ .x = x_norm, .y = std.math.sin(t0) };
 
@@ -645,6 +678,7 @@ pub const ScenePerlin1d = struct {
                 var a1_x = cx + std.math.cos(t1) * r;
                 var a1_y = cy + std.math.sin(t1) * r;
                 utils.draw_arrow_f(cx, cy, a1_x, a1_y, consts.pico_sea, arrow_size);
+                //utils.draw_broken_line(.{ .x = a1_x, .y = a1_y }, .{ .x = cx, .y = a1_y }, 1.0, 1.0, consts.pico_blue);
                 x_norm = (cx - cx0) / ww;
                 generators[1] = .{ .x = x_norm, .y = std.math.sin(t1) };
 
@@ -654,19 +688,23 @@ pub const ScenePerlin1d = struct {
                 var a2_x = cx + std.math.cos(t2) * r;
                 var a2_y = cy + std.math.sin(t2) * r;
                 utils.draw_arrow_f(cx, cy, a2_x, a2_y, consts.pico_sea, arrow_size);
+                //utils.draw_broken_line(.{ .x = a2_x, .y = a2_y }, .{ .x = cx, .y = a2_y }, 1.0, 1.0, consts.pico_blue);
                 x_norm = (cx - cx0) / ww;
                 generators[2] = .{ .x = x_norm, .y = std.math.sin(t2) };
 
-                var x_end: i32 = @intFromFloat(consts.screen_width_f * 0.7);
-                var x: i32 = cx0;
+                //var x_end: i32 = @intFromFloat(consts.screen_width_f * 0.7);
+                //var x: i32 = cx0;
+                var x0: i32 = @intFromFloat(a0_x);
+                var x: i32 = x0;
+                var x_end: i32 = @intFromFloat(a2_x);
                 var prev_y: f32 = 0;
 
                 while (x < x_end) {
                     var x_n = (@as(f32, @floatFromInt(x)) - cx0) / ww;
                     var y = cy + interp_sample_closest(x_n, &generators) * r;
 
-                    if (x != cx0) {
-                        rl.DrawLine(x - 1, @intFromFloat(prev_y), x, @intFromFloat(y), consts.pico_blue);
+                    if (x != x0) {
+                        rl.DrawLine(x - 1, @intFromFloat(prev_y), x, @intFromFloat(y), consts.pico_sea);
                     }
 
                     prev_y = y;
@@ -858,6 +896,10 @@ pub fn interp_sample_closest(x: f32, generators: []const rl.Vector2) f32 {
         }
 
         i += 1;
+    }
+
+    if (i >= generators.len) {
+        i = generators.len - 1;
     }
 
     var prev = i -| 1;
