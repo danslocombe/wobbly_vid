@@ -286,6 +286,7 @@ pub const ScenePerlin1DState = union(enum) {
     OscStackedMovable: struct { t: i32, small_offset: f32 = 0 },
     OscLandscapeSingle: struct { t: i32, landscape: Landscape },
     OscLandscape: struct { t: i32, landscapes: []Landscape },
+    WrapStatic: struct { t: i32, perlin: CircularMappingPerlin },
     End: void,
 };
 
@@ -317,43 +318,10 @@ pub const ScenePerlin1d = struct {
                 x.t += 1;
                 x.perlin.tick();
                 if (clicked) {
-                    var rand = FroggyRand.init(0);
-                    var perlins: [3]AnimatedPerlin = undefined;
-                    perlins[0] = .{};
-                    var pps = alloc.gpa.allocator().alloc(f32, 3) catch unreachable;
-                    pps[0] = 0.6;
-                    pps[1] = -1;
-                    pps[2] = 0.8;
-                    //for (0..3) |i| {
-                    //pps[i] = rand.gen_f32_one_minus_one(.{ 0, i });
-                    //}
-                    perlins[0].perlin.points = pps;
-                    perlins[0].y0 = consts.screen_height_f * 0.2;
-                    perlins[0].yscale = perlin_yscale_base_octaves;
-                    perlins[0].point_col = consts.pico_red;
-
-                    perlins[1] = .{};
-                    pps = alloc.gpa.allocator().alloc(f32, 5) catch unreachable;
-                    for (0..5) |i| {
-                        pps[i] = rand.gen_f32_one_minus_one(.{ 3, i }) * 0.5;
-                    }
-                    perlins[1].perlin.points = pps;
-                    perlins[1].yscale = perlin_yscale_base_octaves;
-
-                    perlins[2] = .{};
-                    pps = alloc.gpa.allocator().alloc(f32, 9) catch unreachable;
-                    for (0..9) |i| {
-                        pps[i] = rand.gen_f32_one_minus_one(.{ 2, i }) * 0.25;
-                    }
-                    perlins[2].perlin.points = pps;
-                    perlins[2].y0 = consts.screen_height_f * 0.8;
-                    perlins[2].yscale = perlin_yscale_base_octaves;
-                    perlins[2].point_col = consts.pico_green;
-
                     self.state = .{
                         .PerlinOctaves = .{
                             .t = 0,
-                            .perlins = perlins,
+                            .perlins = make_three_perlins(),
                         },
                     };
                 }
@@ -526,6 +494,25 @@ pub const ScenePerlin1d = struct {
                     x.landscapes[1].y0 = utils.dan_lerp(x.landscapes[1].y0, x.landscapes[0].y0, 5.0);
                     x.landscapes[2].y0 = utils.dan_lerp(x.landscapes[2].y0, x.landscapes[0].y0, 12.0);
                 }
+                if (clicked) {
+                    var perlins = make_three_perlins();
+                    perlins[0].y0 = consts.screen_height_f * 0.5;
+                    perlins[1].y0 = consts.screen_height_f * 0.5;
+                    perlins[2].y0 = consts.screen_height_f * 0.5;
+
+                    self.state = .{
+                        .WrapStatic = .{
+                            .t = 0,
+                            .perlin = .{
+                                .perlins = perlins,
+                            },
+                        },
+                    };
+                }
+            },
+            .WrapStatic => |*x| {
+                x.t += 1;
+                if (clicked) {}
             },
             else => {
                 // TODO
@@ -538,15 +525,16 @@ pub const ScenePerlin1d = struct {
             .Intro => |x| {
                 //fonts.g_linssen.draw_text(0, "making interesting things boring", 60, 150, consts.pico_black);
                 sprites.draw_blob_text("maths", .{ .x = 100, .y = 100 });
+                //sprites.draw_blob_text("maths", .{ .x = 100, .y = 100 });
 
                 var styling = Styling{
                     .color = consts.pico_black,
                     .wavy = true,
-                    .rainbow = true,
+                    //.rainbow = true,
                 };
                 var font_state = fonts.DrawTextState{};
-                fonts.g_linssen.draw_text_state(x.t, "rigorous fun!", 30, 210, styling, &font_state);
-                // Nothing to do
+                //fonts.g_linssen.draw_text_state(x.t, "rigorous fun!", 30, 210, styling, &font_state);
+                fonts.g_ui.draw_text_state(x.t, "perlin noise!", 80, 130, styling, &font_state);
             },
             .SinglePerlin => |*x| {
                 x.perlin.draw();
@@ -782,6 +770,17 @@ pub const ScenePerlin1d = struct {
                     state.landscapes[2].draw();
                     state.landscapes[0].draw_merged(&xx);
                 }
+            },
+            .WrapStatic => |*x| {
+                //const t_merge = 10000;
+                //var perlin_1_and_2 = [2]*AnimatedPerlin{ &x.perlins[1], &x.perlins[2] };
+                //x.perlins[0].draw_merged(&perlin_1_and_2, @min(t_merge, 1.0));
+                var tt = @as(f32, @floatFromInt(x.t)) * 0.005;
+                tt = std.math.pow(f32, tt, 1.5);
+
+                x.perlin.draw(@min(tt, 1.0));
+
+                fonts.g_linssen.draw_text(0, "wrap", 70, 210, consts.pico_black);
             },
             else => {
                 // Todo
@@ -1148,6 +1147,105 @@ pub const Landscape = struct {
 
             i += 1;
             prev = py;
+        }
+    }
+};
+
+pub fn make_three_perlins() [3]AnimatedPerlin {
+    var rand = FroggyRand.init(0);
+    var perlins: [3]AnimatedPerlin = undefined;
+    perlins[0] = .{};
+    var pps = alloc.gpa.allocator().alloc(f32, 3) catch unreachable;
+    pps[0] = 0.6;
+    pps[1] = -1;
+    pps[2] = 0.8;
+    //for (0..3) |i| {
+    //pps[i] = rand.gen_f32_one_minus_one(.{ 0, i });
+    //}
+    perlins[0].perlin.points = pps;
+    perlins[0].y0 = consts.screen_height_f * 0.2;
+    perlins[0].yscale = perlin_yscale_base_octaves;
+    perlins[0].point_col = consts.pico_red;
+
+    perlins[1] = .{};
+    pps = alloc.gpa.allocator().alloc(f32, 5) catch unreachable;
+    for (0..5) |i| {
+        pps[i] = rand.gen_f32_one_minus_one(.{ 3, i }) * 0.5;
+    }
+    perlins[1].perlin.points = pps;
+    perlins[1].yscale = perlin_yscale_base_octaves;
+
+    perlins[2] = .{};
+    pps = alloc.gpa.allocator().alloc(f32, 9) catch unreachable;
+    for (0..9) |i| {
+        pps[i] = rand.gen_f32_one_minus_one(.{ 2, i }) * 0.25;
+    }
+    perlins[2].perlin.points = pps;
+    perlins[2].y0 = consts.screen_height_f * 0.8;
+    perlins[2].yscale = perlin_yscale_base_octaves;
+    perlins[2].point_col = consts.pico_green;
+
+    return perlins;
+}
+
+pub const CircularMappingPerlin = struct {
+    perlins: [3]AnimatedPerlin,
+
+    pub fn draw(self: *CircularMappingPerlin, circle_t: f32) void {
+        _ = self;
+        var theta = circle_t * 3.141;
+        if (theta < 0.01) {
+            // Dont want to divide by zero
+            return;
+        }
+
+        var arc_len = consts.screen_width_f * 0.3;
+        var radius = arc_len / theta;
+        //var radius: f32 = 100;
+
+        fonts.g_linssen.draw_text(0, std.fmt.allocPrintZ(alloc.temp_alloc.allocator(), "Angle {d}", .{theta}) catch unreachable, 10, 10, consts.pico_blue);
+
+        const n = 512;
+        var samples = alloc.temp_alloc.allocator().alloc(f32, n) catch unreachable;
+        _ = samples;
+
+        var prev: rl.Vector2 = .{ .x = 0, .y = 0 };
+
+        var first = true;
+
+        var cx = consts.screen_width_f * 0.5; // - radius;
+        var cy = consts.screen_height_f * 0.5 + radius;
+
+        //for ((n / 2)..n) |i| {
+        //var i_n = 2.0 * (@as(f32, @floatFromInt(i)) / n - 0.5);
+        for (0..n) |i| {
+            var i_n = @as(f32, @floatFromInt(i)) / n;
+
+            var angle = i_n * theta;
+
+            const pi_by_two = 3.141 * 0.5;
+            var pos_x = cx + std.math.cos(angle - pi_by_two) * radius;
+            var pos_y = cy + std.math.sin(angle - pi_by_two) * radius;
+            var pos: rl.Vector2 = .{ .x = pos_x, .y = pos_y };
+
+            if (!first) {
+                // Draw
+                rl.DrawLineV(prev, pos, consts.pico_blue);
+            }
+
+            first = false;
+            prev = pos;
+
+            //var sample: f32 = 0;
+            //sample += self.perlins[0].perlin.sample(i_n);
+            //sample += self.perlins[1].perlin.sample(i_n);
+            //sample += self.perlins[2].perlin.sample(i_n);
+
+            //samples[i] = sample;
+
+            // For now
+            var sample: f32 = 0.0;
+            _ = sample;
         }
     }
 };
