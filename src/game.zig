@@ -10,6 +10,7 @@ const fonts = @import("fonts.zig");
 const sprites = @import("sprites.zig");
 const FroggyRand = @import("froggy_rand.zig").FroggyRand;
 const Styling = @import("adlib.zig").Styling;
+const world = @import("world.zig");
 
 pub const ground_y = 150;
 
@@ -17,6 +18,8 @@ const camera_min_x = -100;
 const camera_max_x = 500;
 const camera_min_y = -100;
 const camera_max_y = 500;
+
+const TAU = std.math.tau;
 
 pub var g_shader_noise_dump: f32 = 0.0;
 pub var g_screenshake: f32 = 0.0;
@@ -100,6 +103,8 @@ pub const Game = struct {
 
             self.camera_x = std.math.clamp(self.camera_x_base + std.math.cos(screenshake_angle) * screenshake_mag, camera_min_x, camera_max_x);
             self.camera_y = std.math.clamp(self.camera_y_base + std.math.sin(screenshake_angle) * screenshake_mag, camera_min_y, camera_max_y);
+
+            utils.g_mouse_world = utils.sub_v2(utils.g_mouse_screen, .{ .x = self.camera_x, .y = self.camera_y });
 
             //var player_speed_2 = self.player.vel.x * self.player.vel.x + self.player.vel.y * self.player.vel.y;
             //var player_speed = std.math.sqrt(player_speed_2);
@@ -280,13 +285,22 @@ pub const ScenePerlin1DState = union(enum) {
     SinglePerlin: struct { t: i32, perlin: AnimatedPerlin },
     PerlinOctaves: struct { t: i32, perlins: [3]AnimatedPerlin },
     MergedPerlin: struct { t: i32, perlins: [3]AnimatedPerlin },
+    Trick1: struct { t: i32 },
     IntroOsc: struct { t: i32 },
     OscStackedCentral: struct { t: i32 },
     OscStackedTipTail: struct { t: i32 },
     OscStackedMovable: struct { t: i32, small_offset: f32 = 0 },
-    OscLandscapeSingle: struct { t: i32, landscape: Landscape },
+    OscLandscapeSingle: struct { t: i32, playing: bool = false, landscape: Landscape },
     OscLandscape: struct { t: i32, landscapes: []Landscape },
+    Trick2: struct { t: i32 },
     WrapStatic: struct { t: i32, perlin: CircularMappingPerlin },
+    PlanetInterp: struct { t: i32, planet: Planet },
+    PlanetProps: struct {
+        t: i32,
+        planet: Planet,
+        rocks: std.ArrayList(Rock),
+        trees: std.ArrayList(Tree),
+    },
     End: void,
 };
 
@@ -373,6 +387,12 @@ pub const ScenePerlin1d = struct {
                 }
 
                 if (clicked) {
+                    self.state = .{ .Trick1 = .{ .t = 0 } };
+                }
+            },
+            .Trick1 => |*x| {
+                x.t += 1;
+                if (clicked) {
                     self.state = .{ .IntroOsc = .{ .t = 0 } };
                     g_shader_noise_dump = 0.5;
                     g_screenshake = 1.0;
@@ -431,7 +451,10 @@ pub const ScenePerlin1d = struct {
             },
             .OscLandscapeSingle => |*x| {
                 x.t += 1;
-                x.landscape.tick();
+                x.playing = space_down;
+                if (x.playing) {
+                    x.landscape.tick();
+                }
                 if (clicked) {
                     var rand = FroggyRand.init(1);
                     var landscapes = alloc.gpa.allocator().alloc(Landscape, 3) catch unreachable;
@@ -494,17 +517,67 @@ pub const ScenePerlin1d = struct {
                     x.landscapes[1].y0 = utils.dan_lerp(x.landscapes[1].y0, x.landscapes[0].y0, 5.0);
                     x.landscapes[2].y0 = utils.dan_lerp(x.landscapes[2].y0, x.landscapes[0].y0, 12.0);
                 }
+
                 if (clicked) {
-                    var perlins = make_three_perlins();
-                    perlins[0].y0 = consts.screen_height_f * 0.5;
-                    perlins[1].y0 = consts.screen_height_f * 0.5;
-                    perlins[2].y0 = consts.screen_height_f * 0.5;
+                    self.state = .{ .Trick2 = .{ .t = 0 } };
+                }
+            },
+            .Trick2 => |*x| {
+                x.t += 1;
+                if (clicked) {
+                    //var perlins = make_three_perlins();
+                    //perlins[0].y0 = consts.screen_height_f * 0.5;
+                    //perlins[1].y0 = consts.screen_height_f * 0.5;
+                    //perlins[2].y0 = consts.screen_height_f * 0.5;
+
+                    //self.state = .{
+                    //    .WrapStatic = .{
+                    //        .t = 0,
+                    //        .perlin = .{
+                    //            .perlins = perlins,
+                    //        },
+                    //    },
+                    //};
+                    g_shader_noise_dump = 0.5;
+                    g_screenshake = 1.0;
+
+                    var rand = FroggyRand.init(1);
+                    var landscapes = alloc.gpa.allocator().alloc(Landscape, 3) catch unreachable;
+                    var r: f32 = 18;
+                    landscapes[0] = .{
+                        .y0 = consts.screen_height_f * 0.2,
+                        .point_col = consts.pico_red,
+                        .r = r,
+                    };
+
+                    var offsets_1 = alloc.gpa.allocator().alloc(f32, 5) catch unreachable;
+                    for (0..5) |i| {
+                        offsets_1[i] = rand.gen_angle(.{ 0, i });
+                    }
+
+                    landscapes[1] = .{
+                        .offsets = offsets_1,
+                        .y0 = consts.screen_height_f * 0.5,
+                        .r = r * 0.5,
+                    };
+
+                    var offsets_2 = alloc.gpa.allocator().alloc(f32, 9) catch unreachable;
+                    for (0..9) |i| {
+                        offsets_2[i] = rand.gen_angle(.{ 0, i });
+                    }
+
+                    landscapes[2] = .{
+                        .offsets = offsets_2,
+                        .y0 = consts.screen_height_f * 0.8,
+                        .point_col = consts.pico_green,
+                        .r = r * 0.25,
+                    };
 
                     self.state = .{
                         .WrapStatic = .{
                             .t = 0,
                             .perlin = .{
-                                .perlins = perlins,
+                                .landscapes = landscapes,
                             },
                         },
                     };
@@ -512,7 +585,61 @@ pub const ScenePerlin1d = struct {
             },
             .WrapStatic => |*x| {
                 x.t += 1;
-                if (clicked) {}
+                x.perlin.landscapes[0].tick();
+                x.perlin.landscapes[1].tick();
+                x.perlin.landscapes[2].tick();
+                if (clicked) {
+                    g_screenshake = 0.5;
+                    g_shader_noise_dump = 0.5;
+                    self.state = .{
+                        .PlanetInterp = .{
+                            .t = 0,
+                            .planet = Planet{
+                                .world = world.World.new(0, .{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 }, 64, 16),
+                            },
+                        },
+                    };
+                }
+            },
+            .PlanetInterp => |*x| {
+                x.t += 1;
+                x.planet.world.tick();
+                if (clicked) {
+                    var new_planet = x.planet;
+                    //new_planet.draw_oscs = false;
+                    new_planet.draw_oscs_arrows = true;
+                    var trees = std.ArrayList(Tree).init(alloc.gpa.allocator());
+                    var rocks = std.ArrayList(Rock).init(alloc.gpa.allocator());
+                    self.state = .{
+                        .PlanetProps = .{
+                            .t = 0,
+                            .planet = new_planet,
+                            .trees = trees,
+                            .rocks = rocks,
+                        },
+                    };
+                }
+            },
+            .PlanetProps => |*x| {
+                x.t += 1;
+                x.planet.world.tick();
+
+                var new_rocks = std.ArrayList(Rock).init(alloc.gpa.allocator());
+
+                for (x.rocks.items) |*rock| {
+                    if (rock.tick(&x.planet)) {
+                        new_rocks.append(rock.*) catch unreachable;
+                    } else {
+                        g_screenshake = @max(g_screenshake, rock.r * 0.2);
+                    }
+                }
+
+                x.rocks.deinit();
+                x.rocks = new_rocks;
+
+                if (clicked) {
+                    x.rocks.append(Rock.new(x.t)) catch unreachable;
+                }
             },
             else => {
                 // TODO
@@ -577,6 +704,15 @@ pub const ScenePerlin1d = struct {
 
                 //fonts.g_linssen.draw_text(0, "sine wave generated as time increases", 80, 215, consts.pico_black);
                 fonts.g_linssen.draw_text(0, "y = sin(t)", 80, 215, consts.pico_black);
+            },
+            .Trick1 => |*x| {
+                sprites.draw_blob_text("trick one", .{ .x = 100, .y = 100 });
+                var styling = Styling{
+                    .color = consts.pico_black,
+                    .wavy = true,
+                };
+                var font_state = fonts.DrawTextState{};
+                fonts.g_linssen.draw_text_state(x.t, "(making things move)", 80, 130, styling, &font_state);
             },
             .OscStackedCentral => |*state| {
                 var tt = @as(f32, @floatFromInt(state.t)) * 0.02;
@@ -751,6 +887,16 @@ pub const ScenePerlin1d = struct {
             },
             .OscLandscapeSingle => |*state| {
                 state.landscape.draw();
+                if (!state.playing) {
+                    rl.DrawLine(10, 10, 10, 20, consts.pico_black);
+                    rl.DrawLine(11, 10, 11, 20, consts.pico_black);
+                    rl.DrawLine(15, 10, 15, 20, consts.pico_black);
+                    rl.DrawLine(16, 10, 16, 20, consts.pico_black);
+                } else {}
+                fonts.g_linssen.draw_text(0, std.fmt.allocPrintZ(alloc.temp_alloc.allocator(), "t = {d:.1}", .{state.landscape.t}) catch unreachable, 40, 20, consts.pico_blue);
+
+                fonts.g_linssen.draw_text(0, "Instead of sampling a number in [-1,1]", 70, 210, consts.pico_black);
+                fonts.g_linssen.draw_text(0, "sample angle offset in [0, 2pi]", 70, 220, consts.pico_black);
             },
             .OscLandscape => |*state| {
                 if (state.t < 60) {
@@ -771,16 +917,44 @@ pub const ScenePerlin1d = struct {
                     state.landscapes[0].draw_merged(&xx);
                 }
             },
+            .Trick2 => |*x| {
+                sprites.draw_blob_text("trick two", .{ .x = 100, .y = 100 });
+                var styling = Styling{
+                    .color = consts.pico_black,
+                    .wavy = true,
+                };
+                var font_state = fonts.DrawTextState{};
+                fonts.g_linssen.draw_text_state(x.t, "(making things round)", 90, 130, styling, &font_state);
+            },
             .WrapStatic => |*x| {
                 //const t_merge = 10000;
                 //var perlin_1_and_2 = [2]*AnimatedPerlin{ &x.perlins[1], &x.perlins[2] };
                 //x.perlins[0].draw_merged(&perlin_1_and_2, @min(t_merge, 1.0));
-                var tt = @as(f32, @floatFromInt(x.t)) * 0.005;
-                tt = std.math.pow(f32, tt, 1.5);
+
+                var tt: f32 = 0;
+
+                if (x.t > 180) {
+                    tt = @as(f32, @floatFromInt(x.t - 180)) * 0.003;
+                    tt = std.math.pow(f32, tt, 1.5);
+                }
 
                 x.perlin.draw(@min(tt, 1.0));
 
-                fonts.g_linssen.draw_text(0, "wrap", 70, 210, consts.pico_black);
+                fonts.g_linssen.draw_text(0, "wrap onto a circle", 70, 210, consts.pico_black);
+                fonts.g_linssen.draw_text(0, "place oscilators at equal spacing in [0,2pi]", 70, 220, consts.pico_black);
+            },
+            .PlanetInterp => |*x| {
+                x.planet.draw();
+                fonts.g_linssen.draw_text(0, "interpolation", 70, 210, consts.pico_black);
+            },
+            .PlanetProps => |*x| {
+                x.planet.draw();
+
+                for (x.rocks.items) |*rock| {
+                    rock.draw();
+                }
+
+                fonts.g_linssen.draw_text(0, "props", 70, 210, consts.pico_black);
             },
             else => {
                 // Todo
@@ -1189,63 +1363,226 @@ pub fn make_three_perlins() [3]AnimatedPerlin {
 }
 
 pub const CircularMappingPerlin = struct {
-    perlins: [3]AnimatedPerlin,
+    landscapes: []Landscape,
 
     pub fn draw(self: *CircularMappingPerlin, circle_t: f32) void {
-        _ = self;
         var theta = circle_t * 3.141;
         if (theta < 0.01) {
             // Dont want to divide by zero
-            return;
+            theta = 0.01;
+            //return;
         }
 
-        var arc_len = consts.screen_width_f * 0.3;
+        var arc_len = consts.screen_width_f * 0.3 + consts.screen_width_f * circle_t * 0.2;
         var radius = arc_len / theta;
         //var radius: f32 = 100;
 
-        fonts.g_linssen.draw_text(0, std.fmt.allocPrintZ(alloc.temp_alloc.allocator(), "Angle {d}", .{theta}) catch unreachable, 10, 10, consts.pico_blue);
+        //fonts.g_linssen.draw_text(0, std.fmt.allocPrintZ(alloc.temp_alloc.allocator(), "Angle {d}", .{theta}) catch unreachable, 10, 10, consts.pico_blue);
 
-        const n = 512;
+        const n = 256;
         var samples = alloc.temp_alloc.allocator().alloc(f32, n) catch unreachable;
-        _ = samples;
 
         var prev: rl.Vector2 = .{ .x = 0, .y = 0 };
-
-        var first = true;
+        var prev_midline: rl.Vector2 = .{ .x = 0, .y = 0 };
 
         var cx = consts.screen_width_f * 0.5; // - radius;
-        var cy = consts.screen_height_f * 0.5 + radius;
+        var cy = consts.screen_height_f * 0.4 + radius - consts.screen_width_f * circle_t * 0.12;
 
         //for ((n / 2)..n) |i| {
         //var i_n = 2.0 * (@as(f32, @floatFromInt(i)) / n - 0.5);
+        var gen0 = self.landscapes[0].get_generators();
+        var gen1 = self.landscapes[1].get_generators();
+        var gen2 = self.landscapes[2].get_generators();
+
         for (0..n) |i| {
             var i_n = @as(f32, @floatFromInt(i)) / n;
+
+            var i_sample = 0.5 + i_n * 0.5;
+            var sample: f32 = 0;
+            sample += self.landscapes[0].sample_with_generators(gen0, i_sample);
+            sample += self.landscapes[1].sample_with_generators(gen1, i_sample);
+            sample += self.landscapes[2].sample_with_generators(gen2, i_sample);
+
+            samples[i] = sample;
 
             var angle = i_n * theta;
 
             const pi_by_two = 3.141 * 0.5;
-            var pos_x = cx + std.math.cos(angle - pi_by_two) * radius;
-            var pos_y = cy + std.math.sin(angle - pi_by_two) * radius;
-            var pos: rl.Vector2 = .{ .x = pos_x, .y = pos_y };
+            var xoff = std.math.cos(angle - pi_by_two) * radius;
+            var yoff = std.math.sin(angle - pi_by_two) * radius;
+            var pos_x = cx + xoff;
+            var pos_y = cy + yoff;
+            var pos0: rl.Vector2 = .{ .x = pos_x, .y = pos_y };
 
-            if (!first) {
+            var normal = utils.norm(.{ .x = xoff, .y = yoff });
+
+            var pos = utils.add_v2(pos0, utils.scale_v2(3 * sample, normal));
+            var pos_midline = pos0;
+            //rl.DrawLineV(pos, utils.sub_v2(pos0, .{ .x = xoff, .y = yoff }), consts.pico_red);
+
+            if (i != 0) {
                 // Draw
+                rl.DrawLineV(prev, pos, consts.pico_blue);
+
+                if (@mod(i, 4) == 0) {
+                    utils.draw_broken_line(prev_midline, pos_midline, 1.0, 1.0, consts.pico_blue);
+                }
+            }
+
+            prev = pos;
+            prev_midline = pos_midline;
+        }
+
+        for (0..n) |i| {
+            var i_n = @as(f32, @floatFromInt(i)) / n;
+
+            var i_sample = 0.5 - i_n * 0.5;
+            var sample: f32 = 0;
+            sample += self.landscapes[0].sample_with_generators(gen0, i_sample);
+            sample += self.landscapes[1].sample_with_generators(gen1, i_sample);
+            sample += self.landscapes[2].sample_with_generators(gen2, i_sample);
+
+            samples[i] = sample;
+
+            var angle = i_n * theta;
+
+            const pi_by_two = 3.141 * 0.5;
+            var xoff = std.math.cos(-angle - pi_by_two) * radius;
+            var yoff = std.math.sin(-angle - pi_by_two) * radius;
+            var pos_x = cx + xoff;
+            var pos_y = cy + yoff;
+            var pos0: rl.Vector2 = .{ .x = pos_x, .y = pos_y };
+
+            var normal = utils.norm(.{ .x = xoff, .y = yoff });
+
+            var pos = utils.add_v2(pos0, utils.scale_v2(3 * sample, normal));
+            var pos_midline = pos0;
+
+            //rl.DrawLineV(pos, utils.sub_v2(pos0, .{ .x = xoff, .y = yoff }), consts.pico_red);
+
+            if (i != 0) {
+                // Draw
+                rl.DrawLineV(prev, pos, consts.pico_blue);
+
+                if (@mod(i, 4) == 0) {
+                    utils.draw_broken_line(prev_midline, pos_midline, 1.0, 1.0, consts.pico_blue);
+                }
+            }
+
+            prev = pos;
+            prev_midline = pos_midline;
+        }
+    }
+};
+
+pub const Planet = struct {
+    world: world.World,
+    draw_oscs: bool = true,
+    draw_oscs_arrows: bool = false,
+
+    pub fn draw(self: *Planet) void {
+        const n = 64;
+        var prev: rl.Vector2 = .{};
+
+        for (0..(n + 1)) |i| {
+            var i_n: f32 = @as(f32, @floatFromInt(i)) / n;
+
+            var pos = self.world.pos_on_surface(i_n * TAU, 0.0);
+
+            if (i != 0) {
                 rl.DrawLineV(prev, pos, consts.pico_blue);
             }
 
-            first = false;
             prev = pos;
-
-            //var sample: f32 = 0;
-            //sample += self.perlins[0].perlin.sample(i_n);
-            //sample += self.perlins[1].perlin.sample(i_n);
-            //sample += self.perlins[2].perlin.sample(i_n);
-
-            //samples[i] = sample;
-
-            // For now
-            var sample: f32 = 0.0;
-            _ = sample;
         }
+
+        if (self.draw_oscs) {
+            for (self.world.oscs) |*osc| {
+                var angle = osc.pos * TAU;
+                var sample = self.world.base_radius + self.world.radius_vary * osc.sample();
+
+                var pos = utils.add_v2(self.world.pos, .{ .x = std.math.cos(angle) * sample, .y = std.math.sin(angle) * sample });
+
+                var col = consts.pico_blue;
+                if (osc.amp0 >= 0.25) {
+                    col = consts.pico_red;
+                } else if (osc.amp0 > 0.18) {
+                    col = consts.pico_sea;
+                } else if (osc.amp0 > 0.125) {
+                    col = consts.pico_green;
+                }
+
+                if (self.draw_oscs_arrows) {
+                    var on_circle = utils.add_v2(self.world.pos, utils.scale_v2(self.world.base_radius, .{ .x = std.math.cos(angle), .y = std.math.sin(angle) }));
+                    utils.draw_arrow_f(on_circle.x, on_circle.y, pos.x, pos.y, col, 4);
+                } else {
+                    rl.DrawCircleLines(@intFromFloat(pos.x), @intFromFloat(pos.y), osc.amp * 10, col);
+                }
+            }
+        }
+    }
+};
+
+pub const Tree = struct {
+    angle: f32,
+    pos: rl.Vector2,
+};
+
+pub const Rock = struct {
+    pos: rl.Vector2,
+    vel: rl.Vector2,
+    r: f32,
+    sides: i32,
+
+    pub fn new(t: i32) Rock {
+        var rand = FroggyRand.init(t);
+        var theta = rand.gen_angle("a");
+        var speed = rand.gen_f32_range("s", 0.0, 0.2);
+
+        var vel = .{ .x = std.math.cos(theta) * speed, .y = std.math.sin(theta) };
+
+        return Rock{
+            .pos = utils.g_mouse_world,
+            .vel = vel,
+            .r = rand.gen_f32_range("r", 2.0, 8.0),
+            .sides = rand.gen_i32_range("sides", 3, 8),
+        };
+    }
+
+    pub fn tick(self: *Rock, planet: *Planet) bool {
+        var delta = utils.sub_v2(planet.world.pos, self.pos);
+        var delta_norm = utils.norm(delta);
+        var dist_2 = utils.mag2_v2(delta);
+
+        var angle = std.math.atan2(f32, -delta.y, -delta.x);
+        var sample = planet.world.sample(angle);
+        var dist = std.math.sqrt(dist_2);
+        if (dist < sample + self.r) {
+            planet.world.slam(10 * self.r, angle);
+            return false;
+        }
+
+        var accel = 300.0 / dist_2;
+
+        self.vel = utils.add_v2(self.vel, utils.scale_v2(accel, delta_norm));
+        self.pos = utils.add_v2(self.pos, self.vel);
+
+        return true;
+    }
+
+    pub fn draw(self: *Rock) void {
+        var prev: rl.Vector2 = .{};
+        for (0..@intCast(self.sides + 1)) |i| {
+            var i_n: f32 = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(self.sides));
+            var angle = i_n * TAU;
+            var pos = utils.add_v2(self.pos, .{ .x = std.math.cos(angle) * self.r, .y = std.math.sin(angle) * self.r });
+
+            if (i != 0) {
+                rl.DrawLineV(prev, pos, consts.pico_blue);
+            }
+
+            prev = pos;
+        }
+        //rl.DrawCircleSectorLines(self.pos, self.r, 0, 360, self.sides, consts.pico_blue);
     }
 };

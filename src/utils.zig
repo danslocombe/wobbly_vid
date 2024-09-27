@@ -2,6 +2,7 @@ const std = @import("std");
 const rl = @import("raylib");
 const consts = @import("consts.zig");
 pub var g_mouse_screen: rl.Vector2 = .{ .x = 0, .y = 0 };
+pub var g_mouse_world: rl.Vector2 = .{};
 
 pub fn scale_v2(k: f32, p: rl.Vector2) rl.Vector2 {
     return .{ .x = k * p.x, .y = k * p.y };
@@ -49,7 +50,7 @@ pub fn zero_v2(p: rl.Vector2) bool {
     return eq_v2(p, .{});
 }
 
-pub fn normalize(p: rl.Vector2) rl.Vector2 {
+pub fn norm(p: rl.Vector2) rl.Vector2 {
     var mag = mag_v2(p);
     if (mag == 0) {
         return .{};
