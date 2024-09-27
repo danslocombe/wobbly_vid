@@ -295,6 +295,16 @@ pub const ScenePerlin1DState = union(enum) {
     Trick2: struct { t: i32 },
     WrapStatic: struct { t: i32, perlin: CircularMappingPerlin },
     PlanetInterp: struct { t: i32, planet: Planet },
+    PlanetPropPos: struct {
+        t: i32,
+        planet: Planet,
+        tree: Tree,
+    },
+    PlanetPropTangent: struct {
+        t: i32,
+        planet: Planet,
+        tree: Tree,
+    },
     PlanetProps: struct {
         t: i32,
         planet: Planet,
@@ -606,6 +616,44 @@ pub const ScenePerlin1d = struct {
                 x.planet.world.tick();
                 if (clicked) {
                     var new_planet = x.planet;
+                    //new_planet.world.pos.y += 40;
+                    //new_planet.draw_oscs = false;
+                    new_planet.draw_oscs_arrows = true;
+                    var tree = .{
+                        .angle = 0.75 * TAU,
+                    };
+                    self.state = .{
+                        .PlanetPropPos = .{
+                            .t = 0,
+                            .planet = new_planet,
+                            .tree = tree,
+                        },
+                    };
+                }
+            },
+            .PlanetPropPos => |*x| {
+                x.planet.world.pos.y = utils.dan_lerp(x.planet.world.pos.y, consts.screen_height_f * 0.5 + 40, 15);
+
+                x.t += 1;
+                x.planet.world.tick();
+                x.tree.tick(&x.planet);
+                if (clicked) {
+                    self.state = .{
+                        .PlanetPropTangent = .{
+                            .t = 0,
+                            .planet = x.planet,
+                            .tree = x.tree,
+                        },
+                    };
+                }
+            },
+            .PlanetPropTangent => |*x| {
+                x.t += 1;
+                x.planet.world.tick();
+                x.tree.tick(&x.planet);
+                if (clicked) {
+                    var new_planet = x.planet;
+                    //new_planet.world.pos.y -= 40;
                     //new_planet.draw_oscs = false;
                     new_planet.draw_oscs_arrows = true;
                     var trees = std.ArrayList(Tree).init(alloc.gpa.allocator());
@@ -630,6 +678,8 @@ pub const ScenePerlin1d = struct {
                 }
             },
             .PlanetProps => |*x| {
+                x.planet.world.pos.y = utils.dan_lerp(x.planet.world.pos.y, consts.screen_height_f * 0.5, 15);
+
                 x.t += 1;
                 x.planet.world.tick();
 
@@ -639,7 +689,32 @@ pub const ScenePerlin1d = struct {
                     if (rock.tick(&x.planet)) {
                         new_rocks.append(rock.*) catch unreachable;
                     } else {
-                        g_screenshake = @max(g_screenshake, rock.r * 0.2);
+                        if (rock.r > 2.0) {
+                            g_screenshake = @max(g_screenshake, rock.r * 0.2);
+                        }
+
+                        if (rock.r > 3) {
+                            var delta = utils.sub_v2(rock.pos, x.planet.world.pos);
+                            var angle = std.math.atan2(f32, delta.y, delta.x);
+                            for (0..8) |i| {
+                                var rand = FroggyRand.init(x.t);
+                                rand = rand.subrand(i);
+                                var r = rand.gen_froggy("r", 0.2, 1.8, 2);
+                                var pos_on_surface = x.planet.world.pos_on_surface(angle, 0.1 + r);
+
+                                var vel_angle = angle + rand.gen_f32_range("a", -1.0, 1.0) * 0.1;
+                                var spd = rand.gen_froggy("s", 0.3, 2.5, 2) * 1.25;
+                                var vel: rl.Vector2 = .{ .x = std.math.cos(vel_angle) * spd, .y = std.math.sin(vel_angle) * spd };
+
+                                new_rocks.append(.{
+                                    .pos = pos_on_surface,
+                                    .vel = vel,
+                                    .r = r,
+                                    .sides = rand.gen_i32_range("sides", 3, 8),
+                                    .lifetime = rand.gen_i32_range("life", 20, 60),
+                                }) catch unreachable;
+                            }
+                        }
                     }
                 }
 
@@ -959,6 +1034,45 @@ pub const ScenePerlin1d = struct {
             .PlanetInterp => |*x| {
                 x.planet.draw();
                 fonts.g_linssen.draw_text(0, "interpolation", 70, 210, consts.pico_black);
+            },
+            .PlanetPropPos => |*x| {
+                x.planet.draw();
+                x.tree.draw(&x.planet);
+
+                var c = x.planet.world.pos;
+                var tp = x.tree.pos;
+                _ = tp;
+                rl.DrawLineV(c, x.tree.pos, consts.pico_sea);
+                rl.DrawLineV(c, utils.add_v2(x.planet.world.pos, .{ .x = 10 }), consts.pico_sea);
+                rl.DrawCircleSectorLines(c, 5.0, 180, 90, 8, consts.pico_sea);
+
+                fonts.g_linssen.draw_text(0, "a", c.x + 4, c.y - 16, consts.pico_blue);
+
+                fonts.g_linssen.draw_text(0, "layout", 70, 210, consts.pico_black);
+            },
+            .PlanetPropTangent => |*x| {
+                x.planet.draw();
+                x.tree.draw(&x.planet);
+
+                var c = x.planet.world.pos;
+                var tp = x.tree.pos;
+                var p0 = x.planet.world.pos_on_surface(x.tree.angle + 0.04, 0.0);
+                var p1 = x.planet.world.pos_on_surface(x.tree.angle - 0.04, 0.0);
+                rl.DrawLineV(c, p0, consts.pico_sea);
+                rl.DrawLineV(c, p1, consts.pico_sea);
+                rl.DrawLineV(c, utils.add_v2(x.planet.world.pos, .{ .x = 10 }), consts.pico_sea);
+                rl.DrawCircleSectorLines(c, 5.0, 180, 90, 8, consts.pico_sea);
+
+                var normal = x.planet.world.sample_normal(x.tree.angle);
+                var tangent: rl.Vector2 = .{ .x = -normal.y, .y = normal.x };
+
+                utils.draw_arrow_p(tp, utils.add_v2(utils.scale_v2(40, tangent), tp), consts.pico_red, 8);
+                utils.draw_arrow_p(tp, utils.add_v2(utils.scale_v2(40, normal), tp), consts.pico_green, 8);
+
+                fonts.g_linssen.draw_text(0, "a + 0.01", c.x + 4, c.y - 16, consts.pico_blue);
+                fonts.g_linssen.draw_text(0, "a - 0.01", c.x - 50, c.y - 16, consts.pico_blue);
+
+                fonts.g_linssen.draw_text(0, "layout", 70, 210, consts.pico_black);
             },
             .PlanetProps => |*x| {
                 x.planet.draw();
@@ -1557,7 +1671,7 @@ pub const Tree = struct {
         var angle = std.math.atan2(f32, normal.y, normal.x) + TAU / 4.0;
         //var angle = self.angle + TAU / 4.0;
         //rl.DrawCircleV(self.pos, 2, consts.pico_pink);
-        sprites.g_sprites.draw_frame_scaled_rotated("tree_small", 0, self.pos, 1, 1, .{ .x = 8, .y = 18.0 }, angle * 360.0 / TAU);
+        sprites.g_sprites.draw_frame_scaled_rotated("tree_small", 0, self.pos, 1, 1, .{ .x = 9, .y = 24.0 }, angle * 360.0 / TAU);
     }
 };
 
@@ -1566,6 +1680,7 @@ pub const Rock = struct {
     vel: rl.Vector2,
     r: f32,
     sides: i32,
+    lifetime: ?i32 = null,
 
     pub fn new(t: i32) Rock {
         var rand = FroggyRand.init(t);
@@ -1584,6 +1699,14 @@ pub const Rock = struct {
     }
 
     pub fn tick(self: *Rock, planet: *Planet) bool {
+        if (self.lifetime) |l| {
+            if (l == 0) {
+                return false;
+            }
+
+            self.lifetime = l - 1;
+        }
+
         var delta = utils.sub_v2(planet.world.pos, self.pos);
         var delta_norm = utils.norm(delta);
         var dist_2 = utils.mag2_v2(delta);
@@ -1592,7 +1715,9 @@ pub const Rock = struct {
         var sample = planet.world.sample(angle);
         var dist = std.math.sqrt(dist_2);
         if (dist < sample + self.r) {
-            planet.world.slam(10 * self.r, angle);
+            if (self.r > 2.0) {
+                planet.world.slam(10 * self.r, angle);
+            }
             return false;
         }
 

@@ -153,6 +153,10 @@ pub fn draw_broken_line(p0: rl.Vector2, p1: rl.Vector2, stripe_off_len: f32, str
     }
 }
 
+pub fn draw_arrow_p(start: rl.Vector2, end: rl.Vector2, col: rl.Color, arrow_size: i32) void {
+    draw_arrow_f(start.x, start.y, end.x, end.y, col, arrow_size);
+}
+
 pub fn draw_arrow_f(start_x: f32, start_y: f32, end_x: f32, end_y: f32, col: rl.Color, arrow_size: i32) void {
     draw_arrow(@intFromFloat(start_x), @intFromFloat(start_y), @intFromFloat(end_x), @intFromFloat(end_y), col, arrow_size);
 }
