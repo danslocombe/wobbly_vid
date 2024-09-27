@@ -38,11 +38,11 @@ pub const Game = struct {
     camera_zoom: f32 = 1,
     screenshake_t: f32 = 0,
 
-    particles: std.ArrayList(Particle),
+    //particles: std.ArrayList(Particle),
     // Bitmap denoting which particles in the array are empty or "dead"
     // This can be used to allocate new particles into and should be skipped over for
     // ticking and drawing.
-    particles_dead: std.bit_set.DynamicBitSet,
+    //particles_dead: std.bit_set.DynamicBitSet,
 
     scene_1: ScenePerlin1d,
 
@@ -58,8 +58,8 @@ pub const Game = struct {
 
         return Game{
             .scene_1 = scene,
-            .particles = std.ArrayList(Particle).init(alloc.gpa.allocator()),
-            .particles_dead = std.bit_set.DynamicBitSet.initEmpty(alloc.gpa.allocator(), 4) catch unreachable,
+            //.particles = std.ArrayList(Particle).init(alloc.gpa.allocator()),
+            //.particles_dead = std.bit_set.DynamicBitSet.initEmpty(alloc.gpa.allocator(), 4) catch unreachable,
         };
     }
 
@@ -164,57 +164,57 @@ pub const Game = struct {
 
         //rl.DrawRectangle(camera_min_x, ground_y, camera_max_x + 500 - camera_min_x, camera_max_y + 200 - ground_y, consts.pico_black);
 
-        for (self.particles.items, 0..) |*p, i| {
-            if (self.particles_dead.isSet(i)) {
-                continue;
-            }
+        //for (self.particles.items, 0..) |*p, i| {
+        //    if (self.particles_dead.isSet(i)) {
+        //        continue;
+        //    }
 
-            p.draw();
-        }
+        //    p.draw();
+        //}
 
         camera.End();
     }
 
-    pub fn create_particle(self: *Game, p_pos: rl.Vector2, n: usize, offset: f32) void {
-        var rand = FroggyRand.init(0);
+    //pub fn create_particle(self: *Game, p_pos: rl.Vector2, n: usize, offset: f32) void {
+    //    var rand = FroggyRand.init(0);
 
-        for (0..n) |i| {
-            var pos = p_pos;
-            var theta = rand.gen_f32_uniform(.{ self.t, i }) * 3.141 * 2.0;
-            var ox = offset * std.math.cos(theta);
-            var oy = offset * std.math.sin(theta);
-            pos.x += ox;
-            pos.y += oy;
+    //    for (0..n) |i| {
+    //        var pos = p_pos;
+    //        var theta = rand.gen_f32_uniform(.{ self.t, i }) * 3.141 * 2.0;
+    //        var ox = offset * std.math.cos(theta);
+    //        var oy = offset * std.math.sin(theta);
+    //        pos.x += ox;
+    //        pos.y += oy;
 
-            var frame = rand.gen_usize_range(.{ self.t, i }, 0, particle_frames.len - 1);
+    //        var frame = rand.gen_usize_range(.{ self.t, i }, 0, particle_frames.len - 1);
 
-            const speed_k = 0.01;
-            const speed_k_x = 0.03;
-            self.create_particle_internal(.{
-                .frame = frame,
-                .pos = pos,
-                .vel = .{ .x = ox * speed_k_x, .y = oy * speed_k },
-            });
-        }
-    }
+    //        const speed_k = 0.01;
+    //        const speed_k_x = 0.03;
+    //        self.create_particle_internal(.{
+    //            .frame = frame,
+    //            .pos = pos,
+    //            .vel = .{ .x = ox * speed_k_x, .y = oy * speed_k },
+    //        });
+    //    }
+    //}
 
-    pub fn create_particle_internal(self: *Game, particle: Particle) void {
-        if (self.particles_dead.findFirstSet()) |i| {
-            if (i < self.particles.items.len) {
-                self.particles_dead.unset(i);
-                self.particles.items[i] = particle;
-                return;
-            }
-        }
+    //pub fn create_particle_internal(self: *Game, particle: Particle) void {
+    //    if (self.particles_dead.findFirstSet()) |i| {
+    //        if (i < self.particles.items.len) {
+    //            self.particles_dead.unset(i);
+    //            self.particles.items[i] = particle;
+    //            return;
+    //        }
+    //    }
 
-        var index = self.particles.items.len;
-        self.particles.append(particle) catch unreachable;
-        if (self.particles.items.len > self.particles_dead.capacity()) {
-            self.particles_dead.resize(self.particles_dead.capacity() * 2, true) catch unreachable;
-        }
+    //    var index = self.particles.items.len;
+    //    self.particles.append(particle) catch unreachable;
+    //    if (self.particles.items.len > self.particles_dead.capacity()) {
+    //        self.particles_dead.resize(self.particles_dead.capacity() * 2, true) catch unreachable;
+    //    }
 
-        self.particles_dead.unset(index);
-    }
+    //    self.particles_dead.unset(index);
+    //}
 };
 
 pub const Particle = struct {
@@ -304,6 +304,16 @@ pub const ScenePerlin1DState = union(enum) {
         t: i32,
         planet: Planet,
         tree: Tree,
+    },
+    OscSlam: struct {
+        t: f32,
+        paused: bool = false,
+        just_slammed: bool = false,
+        planet: Planet,
+        player_state: PlayerState = .{},
+        particles: std.ArrayList(Particle),
+
+        ongoing_slam_offset_t: f32 = 0,
     },
     PlanetProps: struct {
         t: i32,
@@ -651,7 +661,78 @@ pub const ScenePerlin1d = struct {
                 x.t += 1;
                 x.planet.world.tick();
                 x.tree.tick(&x.planet);
+
                 if (clicked) {
+                    g_screenshake = 0.5;
+                    g_shader_noise_dump = 0.5;
+                    self.state = .{
+                        .OscSlam = .{
+                            .t = 0,
+                            .planet = x.planet,
+                            .particles = std.ArrayList(Particle).init(alloc.gpa.allocator()),
+                        },
+                    };
+                }
+            },
+            .OscSlam => |*x| {
+                if (!x.paused) {
+                    x.ongoing_slam_offset_t += 1;
+                    x.t = utils.dan_lerp(x.t, x.ongoing_slam_offset_t, 8.0);
+                    x.player_state.t += 1;
+
+                    var new_particles = std.ArrayList(Particle).init(alloc.gpa.allocator());
+                    for (x.particles.items) |*particle| {
+                        if (particle.tick(1)) {
+                            new_particles.append(particle.*) catch unreachable;
+                        }
+                    }
+
+                    x.particles.deinit();
+                    x.particles = new_particles;
+                } else {
+                    if (space_down) {
+                        x.paused = false;
+                        x.just_slammed = false;
+                        x.player_state.space_up_since_unpause = false;
+                    }
+                }
+
+                if (!x.player_state.jumping) {
+                    if (space_down and x.player_state.space_up_since_unpause) {
+                        x.player_state.charging = true;
+                    } else if (x.player_state.charging) {
+                        x.player_state.jumping = true;
+                        x.player_state.yvel = -7;
+                        x.player_state.charging = false;
+                    }
+
+                    if (!space_down) {
+                        x.player_state.space_up_since_unpause = true;
+                    }
+                } else {
+                    x.player_state.yvel += 0.35;
+                    if (x.player_state.yvel > 0.0) {
+                        x.player_state.yvel += 0.1;
+                    }
+                    x.player_state.y_off += x.player_state.yvel;
+
+                    if (x.player_state.y_off > 0) {
+                        x.player_state.jumping = false;
+                        x.player_state.yvel = 0;
+                        x.player_state.y_off = 0;
+                        g_screenshake = 0.25;
+                        x.paused = true;
+                        x.just_slammed = true;
+
+                        x.ongoing_slam_offset_t = get_slam_target(x.t);
+
+                        create_particles(&x.particles, @intFromFloat(x.t), utils.add_v2(x.player_state.last_pos, .{ .x = 4 * 2, .y = 10 * 2 + 4 }), 4, 2.0);
+                    }
+                }
+
+                if (false and clicked) {
+                    g_screenshake = 0.5;
+                    g_shader_noise_dump = 0.5;
                     var new_planet = x.planet;
                     //new_planet.world.pos.y -= 40;
                     //new_planet.draw_oscs = false;
@@ -1074,6 +1155,18 @@ pub const ScenePerlin1d = struct {
 
                 fonts.g_linssen.draw_text(0, "layout", 70, 210, consts.pico_black);
             },
+            .OscSlam => |*state| {
+                for (state.particles.items) |*part| {
+                    part.draw();
+                }
+                var tt = state.t * 0.02;
+                const r = 32;
+                const col = consts.pico_sea;
+                draw_generator_slam(&state.player_state, state.just_slammed, tt, r, r, col, 32);
+
+                //fonts.g_linssen.draw_text(0, "sine wave generated as time increases", 80, 215, consts.pico_black);
+                fonts.g_linssen.draw_text(0, "slamming", 80, 215, consts.pico_black);
+            },
             .PlanetProps => |*x| {
                 x.planet.draw();
 
@@ -1084,7 +1177,7 @@ pub const ScenePerlin1d = struct {
                     rock.draw();
                 }
 
-                fonts.g_linssen.draw_text(0, "props", 70, 210, consts.pico_black);
+                fonts.g_linssen.draw_text(0, "it's all coming together", 70, 210, consts.pico_black);
             },
             else => {
                 // Todo
@@ -1228,6 +1321,10 @@ pub const AnimatedPerlin = struct {
 };
 
 pub fn draw_generator(theta: f32, r: f32, r_big: f32, col: rl.Color) void {
+    draw_generator_ext(theta, r, r_big, col, 0);
+}
+
+pub fn draw_generator_ext(theta: f32, r: f32, r_big: f32, col: rl.Color, xoff: f32) void {
     var cx = consts.screen_width_f * 0.3;
     var cy = consts.screen_height_f * 0.5;
     rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), r, col);
@@ -1239,7 +1336,7 @@ pub fn draw_generator(theta: f32, r: f32, r_big: f32, col: rl.Color) void {
 
     var p = .{ .x = px, .y = py };
     var p_dotted_end = p;
-    p_dotted_end.x = cx + r_big * 1.5;
+    p_dotted_end.x = cx + r_big * 1.5 + xoff;
     utils.draw_broken_line(p, p_dotted_end, 2.0, 2.0, col);
 
     var x0: i32 = @intFromFloat(p_dotted_end.x);
@@ -1258,6 +1355,124 @@ pub fn draw_generator(theta: f32, r: f32, r_big: f32, col: rl.Color) void {
 
         x += 1;
         prev_y = y;
+    }
+}
+
+pub const PlayerState = struct {
+    t: i32 = 0,
+    jumping: bool = false,
+    charging: bool = false,
+    y_off: f32 = 0,
+    yvel: f32 = 0,
+    last_pos: rl.Vector2 = .{},
+    space_up_since_unpause: bool = false,
+};
+
+pub fn draw_generator_slam(player_state: *PlayerState, show_arrow: bool, theta: f32, r: f32, r_big: f32, col: rl.Color, xoff: f32) void {
+    var cx = consts.screen_width_f * 0.3;
+    var cy = consts.screen_height_f * 0.5;
+    rl.DrawCircleLines(@intFromFloat(cx), @intFromFloat(cy), r, col);
+
+    var px = cx + r * std.math.cos(theta);
+    var py = cy + r * std.math.sin(theta);
+    var arrow_size = 4 + 6 * r / r_big;
+    utils.draw_arrow_f(cx, cy, px, py, col, @intFromFloat(arrow_size));
+
+    var p = .{ .x = px, .y = py };
+    var p_dotted_end = p;
+    p_dotted_end.x = cx + r_big * 1.5 + xoff;
+    utils.draw_broken_line(p, p_dotted_end, 2.0, 2.0, col);
+
+    var x0: i32 = @intFromFloat(p_dotted_end.x);
+    var x_end: i32 = @intFromFloat(consts.screen_width_f * 0.85);
+
+    var x = x0;
+    var prev_y: f32 = 0;
+    var angle = theta;
+
+    while (x < x_end) {
+        angle -= 0.02;
+        var y = cy + std.math.sin(angle) * r;
+
+        if (x != x0) {
+            rl.DrawLine(x - 1, @intFromFloat(prev_y), x, @intFromFloat(y), col);
+        }
+
+        x += 1;
+        prev_y = y;
+    }
+
+    var frame: usize = 0;
+
+    var pp = p_dotted_end;
+    pp.y -= 20;
+    pp.x -= 10;
+    pp.y += player_state.y_off;
+
+    if (show_arrow) {
+        frame = 4;
+    } else if (player_state.charging) {
+        frame = 2;
+    } else if (!player_state.jumping) {
+        if (@mod(@divFloor(player_state.t, 6), 2) == 0) {
+            frame = 0;
+        } else {
+            frame = 1;
+        }
+    } else {
+        frame = 3;
+    }
+
+    sprites.g_sprites.draw_frame_scaled("char", frame, pp, 2, 2);
+    player_state.last_pos = pp;
+
+    if (show_arrow) {
+        var s = std.math.sin(theta);
+        var c = .{ .x = cx, .y = cy };
+        var deriv0 = std.math.cos(theta);
+        var deriv = deriv0;
+        if (s > 0) {
+            if (deriv < 0) {
+                utils.draw_arrow_p(utils.add_v2(c, .{ .y = 0 }), utils.add_v2(c, .{ .x = 0, .y = 16 }), consts.pico_red, 6);
+            } else {
+                utils.draw_arrow_p(utils.add_v2(c, .{ .y = 0 }), utils.add_v2(c, .{ .x = 0, .y = 16 }), consts.pico_red, 6);
+            }
+        } else {
+            if (deriv < 0) {
+                utils.draw_arrow_p(utils.add_v2(c, .{ .y = -8 }), utils.add_v2(c, .{ .x = -16, .y = 8 }), consts.pico_red, 6);
+            } else {
+                utils.draw_arrow_p(utils.add_v2(c, .{ .y = -8 }), utils.add_v2(c, .{ .x = 16, .y = 8 }), consts.pico_red, 6);
+            }
+        }
+
+        //if (deriv < 0) {
+        //deriv = -deriv;
+        //}
+        deriv = -deriv;
+
+        const len_2 = 16 * 16;
+
+        var deriv_2 = deriv * deriv;
+        var dx_2 = len_2 / (1 + deriv_2);
+
+        var dx = std.math.sqrt(dx_2);
+        if (deriv0 > 0) {
+            dx = -dx;
+        }
+
+        var dy = deriv * dx;
+
+        // Arrow up
+
+        //var alpha = std.math.atan2(f32, 1.0, deriv);
+        //const len = 16;
+        //var aa: rl.Vector2 = .{ .x = std.math.cos(alpha) * len, .y = std.math.sin(alpha) * len };
+        //var arrow_end = utils.add_v2(ab, aa);
+        //utils.draw_arrow_p(ab, arrow_end, consts.pico_red, 4);
+
+        var ab = utils.add_v2(pp, .{ .x = 10, .y = 32 });
+        var arrow_end = utils.add_v2(ab, .{ .x = dx, .y = dy });
+        utils.draw_arrow_p(ab, arrow_end, consts.pico_red, 4);
     }
 }
 
@@ -1704,6 +1919,7 @@ pub const Rock = struct {
                 return false;
             }
 
+            self.r *= 0.95;
             self.lifetime = l - 1;
         }
 
@@ -1745,3 +1961,98 @@ pub const Rock = struct {
         //rl.DrawCircleSectorLines(self.pos, self.r, 0, 360, self.sides, consts.pico_blue);
     }
 };
+
+pub fn create_particles(particles: *std.ArrayList(Particle), t: i32, p_pos: rl.Vector2, n: usize, offset: f32) void {
+    var rand = FroggyRand.init(0);
+
+    for (0..n) |i| {
+        var pos = p_pos;
+        var theta = rand.gen_f32_uniform(.{ t, i }) * 3.141 * 2.0;
+        var ox = offset * std.math.cos(theta);
+        var oy = offset * std.math.sin(theta);
+        pos.x += ox;
+        pos.y += oy;
+
+        var frame = rand.gen_usize_range(.{ t, i }, 0, particle_frames.len - 1);
+
+        const speed_k = 0.01;
+        const speed_k_x = 0.03;
+        particles.append(.{
+            .frame = frame,
+            .pos = pos,
+            .vel = .{ .x = ox * speed_k_x, .y = oy * speed_k },
+        }) catch unreachable;
+    }
+}
+
+pub fn get_slam_target(t: f32) f32 {
+    const k = 0.02;
+
+    var tt = t * k + 0.5 * TAU;
+
+    var move_val: f32 = 0.8;
+
+    // If you imagine the oscillator tracing a sine wave, we want to
+    // "move" the current time of the oscillator towards a trough (-1)
+    //
+    //                    _ _
+    //  |               /     \
+    //  |\            /         \
+    //  |  |         |           |
+    //  -----------------------------------------------
+    //  |  |         |
+    //  |    \ _ _ /
+    //  |
+    //          |
+    //          target
+    //
+
+    // We start by finding the current cycle number we are on and isolating focusing just on that
+    var a = std.math.floor(tt / TAU);
+    var b = tt - TAU * a;
+
+    // b is the local position in the current cycle and b_target will be the local minimum
+    // We decide b_target by looking at where we are in the current cycle
+    // We either want target_0 or target_1
+    //
+    //              _|_
+    //          | /  |  \
+    //          |/   |   \
+    //          |    |    |
+    //          -----|---------------------------------------
+    //   |      |    |     |       |
+    //    \_ _ /|    |      \ _ _ /
+    //      |   |    |
+    //      |   0    |         |
+    //      |        |         target_1
+    //      target_0 |
+    //               |
+    //               |
+    //     Left of this line we go to target_0
+    //     Right of this line we go to target_1
+
+    std.debug.print("a: {d:.2}, b: {d:.2} ({d:.2}tau)\n", .{ a, b, b / TAU });
+    var b_target: f32 = 0.0;
+    if (b < 0.25 * TAU) {
+        std.debug.print("CASE A\n", .{});
+        b_target = -0.25 * TAU;
+    } else {
+        std.debug.print("CASE B\n", .{});
+        b_target = 0.75 * TAU;
+    }
+
+    var delta = b_target - b;
+
+    std.debug.print("delta: {d:.2} ({d:.2}tau)\n", .{ delta, delta / TAU });
+
+    // If the difference between b and b_target is greater than the max move value determined by the force
+    // we cap it.
+    if (std.math.fabs(delta) > move_val) {
+        delta = std.math.sign(delta) * move_val;
+    }
+
+    std.debug.print("realised delta: {d:.2} ({d:.2}tau)\n", .{ delta, delta / TAU });
+
+    var target = tt + delta;
+    return (target - 0.5 * TAU) / k;
+}

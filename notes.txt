@@ -1,0 +1,26 @@
+I'm going to talk a bit about these planets from my game Crunda 
+They were the first thing I made in development
+Dictated where the rest of the game went
+
+They wobble and interact with the world, and kind of make the whole experience come alive
+as I just between them.
+
+They are modelled physically with a fairly standard technique, perlin noise
+I want to encourage you to look at standard methods and see if you can find your own twists
+
+
+
+----- Into maths world
+
+
+1 d perlin noise
+you can have multidimensional but we are just generating a simple surface
+sample points and draw lines between them
+
+doesnt look very good
+
+add octaves and sum together
+you get "larger" features from lower octaves and finer grained details from higher octaves
+"fractal" perlin noise
+
+
