@@ -14,6 +14,7 @@ pub const SpriteManager = struct {
 
         frame_sprites.put("fnt_blob", load_frames(.{ .filename = "sprites/spr_font_blob_black.png", .frame_count = 26 })) catch unreachable;
         frame_sprites.put("fnt_blob_2", load_frames(.{ .filename = "sprites/spr_font_blob_black_2.png", .frame_count = 26 })) catch unreachable;
+        frame_sprites.put("tree_small", load_frames(.{ .filename = "sprites/spr_tree_small.png", .frame_count = 2 })) catch unreachable;
 
         return .{
             .frame_sprites = frame_sprites,

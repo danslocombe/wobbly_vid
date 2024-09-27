@@ -609,6 +609,15 @@ pub const ScenePerlin1d = struct {
                     //new_planet.draw_oscs = false;
                     new_planet.draw_oscs_arrows = true;
                     var trees = std.ArrayList(Tree).init(alloc.gpa.allocator());
+                    trees.append(.{
+                        .angle = 0.723 * TAU,
+                    }) catch unreachable;
+                    trees.append(.{
+                        .angle = 0.89 * TAU,
+                    }) catch unreachable;
+                    trees.append(.{
+                        .angle = 0.4 * TAU,
+                    }) catch unreachable;
                     var rocks = std.ArrayList(Rock).init(alloc.gpa.allocator());
                     self.state = .{
                         .PlanetProps = .{
@@ -639,6 +648,10 @@ pub const ScenePerlin1d = struct {
 
                 if (clicked) {
                     x.rocks.append(Rock.new(x.t)) catch unreachable;
+                }
+
+                for (x.trees.items) |*tree| {
+                    tree.tick(&x.planet);
                 }
             },
             else => {
@@ -950,6 +963,9 @@ pub const ScenePerlin1d = struct {
             .PlanetProps => |*x| {
                 x.planet.draw();
 
+                for (x.trees.items) |*tree| {
+                    tree.draw(&x.planet);
+                }
                 for (x.rocks.items) |*rock| {
                     rock.draw();
                 }
@@ -1481,7 +1497,7 @@ pub const Planet = struct {
     draw_oscs_arrows: bool = false,
 
     pub fn draw(self: *Planet) void {
-        const n = 64;
+        const n = 128;
         var prev: rl.Vector2 = .{};
 
         for (0..(n + 1)) |i| {
@@ -1525,7 +1541,24 @@ pub const Planet = struct {
 
 pub const Tree = struct {
     angle: f32,
-    pos: rl.Vector2,
+    pos: rl.Vector2 = .{},
+    destroyed: bool = false,
+
+    pub fn tick(self: *Tree, planet: *Planet) void {
+        _ = planet;
+        _ = self;
+        //self.pos = planet.world.pos_on_surface(self.angle, 17.0);
+    }
+
+    pub fn draw(self: *Tree, planet: *Planet) void {
+        //pub fn draw_frame_scaled_rotated(self: *SpriteManager, name: []const u8, p_frame: usize, pos: rl.Vector2, scale_x: f32, scale_y: f32, origin: rl.Vector2, rotation: f32) void {
+        self.pos = planet.world.pos_on_surface(self.angle, 0.0);
+        var normal = planet.world.sample_normal(self.angle);
+        var angle = std.math.atan2(f32, normal.y, normal.x) + TAU / 4.0;
+        //var angle = self.angle + TAU / 4.0;
+        //rl.DrawCircleV(self.pos, 2, consts.pico_pink);
+        sprites.g_sprites.draw_frame_scaled_rotated("tree_small", 0, self.pos, 1, 1, .{ .x = 8, .y = 18.0 }, angle * 360.0 / TAU);
+    }
 };
 
 pub const Rock = struct {
@@ -1538,8 +1571,9 @@ pub const Rock = struct {
         var rand = FroggyRand.init(t);
         var theta = rand.gen_angle("a");
         var speed = rand.gen_f32_range("s", 0.0, 0.2);
+        //const speed = 0;
 
-        var vel = .{ .x = std.math.cos(theta) * speed, .y = std.math.sin(theta) };
+        var vel = .{ .x = std.math.cos(theta) * speed, .y = std.math.sin(theta) * speed };
 
         return Rock{
             .pos = utils.g_mouse_world,

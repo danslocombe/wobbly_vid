@@ -214,6 +214,22 @@ pub const World = struct {
         return res;
     }
 
+    pub fn sample_normal(self: *Self, angle: f32) rl.Vector2 {
+        const EPSILON: f32 = 0.01 * TAU;
+        var derive_sample_0 = self.pos_on_surface(angle - EPSILON * 0.5, 0.0);
+        var derive_sample_1 = self.pos_on_surface(angle + EPSILON * 0.5, 0.0);
+        var delta = utils.sub_v2(derive_sample_1, derive_sample_0);
+        var norm_vector = .{ .x = delta.y, .y = -delta.x };
+
+        return utils.norm(norm_vector);
+        //var angle_from_samples = norm_vector.get_angle();
+
+        //let frame = if self.destroyed { 1 } else { 0 };
+        //let spr_tree = &draw::get_sprite("tree")[frame];
+        //image_data.draw_sprite(spr_tree, p, angle_from_samples + PI * 0.5, V2::new(0.5, 1.0), 1.0);
+        //image_data.draw_line(p, p + V2::norm_from_angle(angle_from_samples) * 10.0, draw::RED);
+    }
+
     pub fn slam(self: *Self, force: f32, angle: f32) void {
         var world_angle = normalize_angle(angle);
         var pos = world_angle / TAU;
