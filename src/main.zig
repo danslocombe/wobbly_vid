@@ -21,10 +21,14 @@ fn contains_arg(args: [][:0]u8, needle: []const u8) bool {
 
 pub fn main() anyerror!void {
     rl.SetConfigFlags(rl.ConfigFlags.FLAG_WINDOW_RESIZABLE);
-    rl.InitWindow(640, 480, "Video");
+    //rl.InitWindow(640, 480, "Video");
+    rl.InitWindow(2560, 1440, "Video");
+    //rl.ToggleBorderlessWindowed();
 
     //rl.SetTargetFPS(144);
     rl.SetTargetFPS(60);
+
+    rl.ToggleFullscreen();
 
     const args = try std.process.argsAlloc(alloc.gpa.allocator());
     _ = args;
@@ -95,7 +99,7 @@ fn draw_framebuffer_to_screen(p_framebuffer: *rl.RenderTexture2D, mapping: *util
 
     rl.DrawTexturePro(framebuffer, mapping.source, mapping.destination, .{ .x = 0.0, .y = 0.0 }, 0.0, rl.WHITE);
 
-    rl.DrawFPS(10, 10);
+    //rl.DrawFPS(10, 10);
     rl.EndDrawing();
 }
 

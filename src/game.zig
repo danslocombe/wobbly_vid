@@ -520,7 +520,7 @@ pub const ScenePerlin1d = struct {
                     landscape.tick();
                 }
 
-                if (x.t > 60 and x.t < 150) {
+                if (x.t > 180 and x.t < 500) {
                     x.landscapes[0].draw_circles = false;
                     x.landscapes[1].draw_circles = false;
 
@@ -528,7 +528,7 @@ pub const ScenePerlin1d = struct {
                     x.landscapes[1].y0 = utils.dan_lerp(x.landscapes[1].y0, x.landscapes[0].y0, 12.0);
                 }
 
-                if (x.t > 400 and x.t < 800) {
+                if (x.t > 500 and x.t < 800) {
                     x.landscapes[0].draw_circles = false;
                     x.landscapes[1].draw_circles = false;
                     x.landscapes[2].draw_circles = false;
@@ -730,7 +730,7 @@ pub const ScenePerlin1d = struct {
                     }
                 }
 
-                if (false and clicked) {
+                if (clicked) {
                     g_screenshake = 0.5;
                     g_shader_noise_dump = 0.5;
                     var new_planet = x.planet;
@@ -842,8 +842,8 @@ pub const ScenePerlin1d = struct {
                 for (&x.perlins) |*p| {
                     p.draw();
                 }
-                fonts.g_linssen.draw_text(0, "three octaves, each with double", 80, 210, consts.pico_black);
-                fonts.g_linssen.draw_text(0, "the points, half the amplitude", 80, 220, consts.pico_black);
+                fonts.g_linssen.draw_text(0, "three octaves, each ascending level", 60, 210, consts.pico_black);
+                fonts.g_linssen.draw_text(0, "with  double the points, half the amplitude", 60, 220, consts.pico_black);
             },
             .MergedPerlin => |*x| {
                 if (x.t < 150) {
@@ -1068,11 +1068,11 @@ pub const ScenePerlin1d = struct {
                 fonts.g_linssen.draw_text(0, "sample angle offset in [0, 2pi]", 70, 220, consts.pico_black);
             },
             .OscLandscape => |*state| {
-                if (state.t < 60) {
+                if (state.t < 180) {
                     for (state.landscapes) |*landscape| {
                         landscape.draw();
                     }
-                } else if (state.t < 400) {
+                } else if (state.t < 600) {
                     var xx = [_]*Landscape{&state.landscapes[1]};
                     state.landscapes[0].draw();
                     state.landscapes[1].draw();
@@ -1102,8 +1102,8 @@ pub const ScenePerlin1d = struct {
 
                 var tt: f32 = 0;
 
-                if (x.t > 180) {
-                    tt = @as(f32, @floatFromInt(x.t - 180)) * 0.003;
+                if (x.t > 60) {
+                    tt = @as(f32, @floatFromInt(x.t - 60)) * 0.005;
                     tt = std.math.pow(f32, tt, 1.5);
                 }
 
@@ -1114,7 +1114,13 @@ pub const ScenePerlin1d = struct {
             },
             .PlanetInterp => |*x| {
                 x.planet.draw();
-                fonts.g_linssen.draw_text(0, "interpolation", 70, 210, consts.pico_black);
+                rl.DrawCircleLines(@intFromFloat(x.planet.world.pos.x), @intFromFloat(x.planet.world.pos.y), 1.0, consts.pico_blue);
+
+                if (x.t < 120) {
+                    fonts.g_linssen.draw_text(0, "new interpolation", 70, 210, consts.pico_black);
+                } else {
+                    fonts.g_linssen.draw_text(0, "r = r_0 + r_vary * sample(angle)", 70, 210, consts.pico_black);
+                }
             },
             .PlanetPropPos => |*x| {
                 x.planet.draw();
@@ -1129,7 +1135,7 @@ pub const ScenePerlin1d = struct {
 
                 fonts.g_linssen.draw_text(0, "a", c.x + 4, c.y - 16, consts.pico_blue);
 
-                fonts.g_linssen.draw_text(0, "layout", 70, 210, consts.pico_black);
+                fonts.g_linssen.draw_text(0, "sticking object to the surface", 50, 210, consts.pico_black);
             },
             .PlanetPropTangent => |*x| {
                 x.planet.draw();
@@ -1153,7 +1159,7 @@ pub const ScenePerlin1d = struct {
                 fonts.g_linssen.draw_text(0, "a + 0.01", c.x + 4, c.y - 16, consts.pico_blue);
                 fonts.g_linssen.draw_text(0, "a - 0.01", c.x - 50, c.y - 16, consts.pico_blue);
 
-                fonts.g_linssen.draw_text(0, "layout", 70, 210, consts.pico_black);
+                //fonts.g_linssen.draw_text(0, "layout", 70, 210, consts.pico_black);
             },
             .OscSlam => |*state| {
                 for (state.particles.items) |*part| {
@@ -1165,7 +1171,7 @@ pub const ScenePerlin1d = struct {
                 draw_generator_slam(&state.player_state, state.just_slammed, tt, r, r, col, 32);
 
                 //fonts.g_linssen.draw_text(0, "sine wave generated as time increases", 80, 215, consts.pico_black);
-                fonts.g_linssen.draw_text(0, "slamming", 80, 215, consts.pico_black);
+                fonts.g_linssen.draw_text(0, "slamming and altering terrain ", 80, 215, consts.pico_black);
             },
             .PlanetProps => |*x| {
                 x.planet.draw();
