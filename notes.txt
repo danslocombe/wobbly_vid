@@ -24,3 +24,20 @@ you get "larger" features from lower octaves and finer grained details from high
 "fractal" perlin noise
 
 
+
+
+-----------------------------------------------------------------------------
+
+
+[Gameplay]
+
+[Presentation]
+What do we want?
+
+Parameters of solution:
+    Sample at angle
+    Want to move on impact
+    Sine waves
+
+Dumb solution to justify real solution
+    Just sample interpolate
