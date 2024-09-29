@@ -38,28 +38,20 @@ pub const Game = struct {
     camera_zoom: f32 = 1,
     screenshake_t: f32 = 0,
 
-    //particles: std.ArrayList(Particle),
-    // Bitmap denoting which particles in the array are empty or "dead"
-    // This can be used to allocate new particles into and should be skipped over for
-    // ticking and drawing.
-    //particles_dead: std.bit_set.DynamicBitSet,
-
-    scene_1: ScenePerlin1d,
+    slideshow: Slideshow,
 
     pub fn init() Game {
         var rand = FroggyRand.init(0);
         _ = rand;
 
-        var scene = ScenePerlin1d{
-            .state = ScenePerlin1DState{
+        var slideshow = Slideshow{
+            .scene = Scene{
                 .Intro = .{ .t = 0 },
             },
         };
 
         return Game{
-            .scene_1 = scene,
-            //.particles = std.ArrayList(Particle).init(alloc.gpa.allocator()),
-            //.particles_dead = std.bit_set.DynamicBitSet.initEmpty(alloc.gpa.allocator(), 4) catch unreachable,
+            .slideshow = slideshow,
         };
     }
 
@@ -71,27 +63,18 @@ pub const Game = struct {
             // TODO resett
         }
 
-        self.scene_1.tick();
+        self.slideshow.tick();
 
         // Update camera
         {
-            //var camer
-            //var target_camera_x = self.player.pos.x - consts.screen_width_f * 0.5;
-            //var target_camera_y = self.player.pos.y - consts.screen_height_f * 0.5;
             var target_camera_x: f32 = 0.0;
             var target_camera_y: f32 = 0.0;
 
             var dx = (utils.g_mouse_screen.x - consts.screen_width_f * 0.5);
             var dy = (utils.g_mouse_screen.y - consts.screen_height_f * 0.5);
-            //std.debug.print("g_mouse_screen: {d} {d}, diff {d} {d}\n", .{ utils.g_mouse_screen.x, utils.g_mouse_screen.y, dx, dy });
 
-            target_camera_x = dx * 0.04; // + consts.screen_width_f * 0.5;
-            target_camera_y = dy * 0.04; // + consts.screen_height_f * 0.5;
-            //target_camera_x = (mouse_pos.x - consts.screen_width_f * 0.5) * 0.1; // + consts.screen_width_f * 0.5;
-            //target_camera_y = (mouse_pos.y - consts.screen_height_f * 0.5) * 0.1; // + consts.screen_height_f * 0.5;
-
-            //var k = 1500 / (1 + dt);
-            //var k = 100 * dt_norm;
+            target_camera_x = dx * 0.04;
+            target_camera_y = dy * 0.04;
             const k = 10;
             self.camera_x_base = utils.dan_lerp(self.camera_x_base, target_camera_x, k);
             self.camera_y_base = utils.dan_lerp(self.camera_y_base, target_camera_y, k);
@@ -105,12 +88,6 @@ pub const Game = struct {
             self.camera_y = std.math.clamp(self.camera_y_base + std.math.sin(screenshake_angle) * screenshake_mag, camera_min_y, camera_max_y);
 
             utils.g_mouse_world = utils.sub_v2(utils.g_mouse_screen, .{ .x = self.camera_x, .y = self.camera_y });
-
-            //var player_speed_2 = self.player.vel.x * self.player.vel.x + self.player.vel.y * self.player.vel.y;
-            //var player_speed = std.math.sqrt(player_speed_2);
-            //var target_camera_zoom = 1 / (1 + player_speed * 0.02);
-            //_ = target_camera_zoom;
-            //self.camera_zoom = dan_lerp(self.camera_zoom, target_camera_zoom, 40);
 
             self.screenshake_t -= 1;
         }
@@ -145,76 +122,9 @@ pub const Game = struct {
             }
         }
 
-        self.scene_1.draw();
-
-        //for (0..50) |i| {
-        //    for (0..50) |j| {
-        //        const w = 25;
-        //        var color = consts.pico_sea;
-        //        var a = ((i % 2) == 0);
-        //        var b = ((j % 2) == 0);
-        //        // No xor :(
-        //        if ((a or b) and !(a and b)) {
-        //            color = consts.pico_white;
-        //        }
-
-        //        rl.DrawRectangle(@as(i32, @intCast(i)) * w, @as(i32, @intCast(j)) * w, w, w, color);
-        //    }
-        //}
-
-        //rl.DrawRectangle(camera_min_x, ground_y, camera_max_x + 500 - camera_min_x, camera_max_y + 200 - ground_y, consts.pico_black);
-
-        //for (self.particles.items, 0..) |*p, i| {
-        //    if (self.particles_dead.isSet(i)) {
-        //        continue;
-        //    }
-
-        //    p.draw();
-        //}
-
+        self.slideshow.draw();
         camera.End();
     }
-
-    //pub fn create_particle(self: *Game, p_pos: rl.Vector2, n: usize, offset: f32) void {
-    //    var rand = FroggyRand.init(0);
-
-    //    for (0..n) |i| {
-    //        var pos = p_pos;
-    //        var theta = rand.gen_f32_uniform(.{ self.t, i }) * 3.141 * 2.0;
-    //        var ox = offset * std.math.cos(theta);
-    //        var oy = offset * std.math.sin(theta);
-    //        pos.x += ox;
-    //        pos.y += oy;
-
-    //        var frame = rand.gen_usize_range(.{ self.t, i }, 0, particle_frames.len - 1);
-
-    //        const speed_k = 0.01;
-    //        const speed_k_x = 0.03;
-    //        self.create_particle_internal(.{
-    //            .frame = frame,
-    //            .pos = pos,
-    //            .vel = .{ .x = ox * speed_k_x, .y = oy * speed_k },
-    //        });
-    //    }
-    //}
-
-    //pub fn create_particle_internal(self: *Game, particle: Particle) void {
-    //    if (self.particles_dead.findFirstSet()) |i| {
-    //        if (i < self.particles.items.len) {
-    //            self.particles_dead.unset(i);
-    //            self.particles.items[i] = particle;
-    //            return;
-    //        }
-    //    }
-
-    //    var index = self.particles.items.len;
-    //    self.particles.append(particle) catch unreachable;
-    //    if (self.particles.items.len > self.particles_dead.capacity()) {
-    //        self.particles_dead.resize(self.particles_dead.capacity() * 2, true) catch unreachable;
-    //    }
-
-    //    self.particles_dead.unset(index);
-    //}
 };
 
 pub const Particle = struct {
@@ -261,14 +171,9 @@ fn draw_particle_frame_scaled(frame: usize, pos: rl.Vector2, scale_x: f32, scale
     rl.DrawTexturePro(sprite, rect, dest, origin, 0, no_tint);
 }
 
-pub const ScenePerlin1DState = union(enum) {
+pub const Scene = union(enum) {
     Intro: struct { t: i32 },
-    EndGoal: struct {
-        t: i32,
-        planet: Planet,
-        rocks: std.ArrayList(Rock),
-        trees: std.ArrayList(Tree),
-    },
+    EndGoal: FinalSceneState,
     SinglePerlin: struct { t: i32, perlin: perlin.AnimatedPerlin },
     PerlinOctaves: struct { t: i32, perlins: [3]perlin.AnimatedPerlin },
     MergedPerlin: struct { t: i32, perlins: [3]perlin.AnimatedPerlin },
@@ -302,35 +207,30 @@ pub const ScenePerlin1DState = union(enum) {
 
         ongoing_slam_offset_t: f32 = 0,
     },
-    PlanetProps: struct {
-        t: i32,
-        planet: Planet,
-        rocks: std.ArrayList(Rock),
-        trees: std.ArrayList(Tree),
-    },
+    PlanetProps: FinalSceneState,
     End: void,
 };
 
-pub const ScenePerlin1d = struct {
-    state: ScenePerlin1DState,
+pub const Slideshow = struct {
+    scene: Scene,
 
-    pub fn tick(self: *ScenePerlin1d) void {
+    pub fn tick(self: *Slideshow) void {
         _ = self;
         // All tick logic moved to draw to make it easier to handle scene components.
         // (Its a lot easier when everything is next to each other.)
     }
 
-    pub fn draw(self: *ScenePerlin1d) void {
+    pub fn draw(self: *Slideshow) void {
         if (rl.IsKeyPressed(rl.KeyboardKey.KEY_R)) {
             // Reset
-            self.state = .{ .Intro = .{ .t = 0 } };
+            self.scene = .{ .Intro = .{ .t = 0 } };
             return;
         }
 
         var clicked = rl.IsMouseButtonPressed(rl.MouseButton.MOUSE_BUTTON_LEFT) or rl.IsKeyPressed(rl.KeyboardKey.KEY_F);
         var space_down = rl.IsKeyDown(rl.KeyboardKey.KEY_SPACE);
 
-        switch (self.state) {
+        switch (self.scene) {
             .Intro => |*x| {
                 x.t += 1;
                 //fonts.g_linssen.draw_text(0, "making interesting things boring", 60, 150, consts.pico_black);
@@ -349,7 +249,7 @@ pub const ScenePerlin1d = struct {
                 if (clicked) {
                     g_shader_noise_dump = 0.5;
                     g_screenshake = 1.0;
-                    self.state = .{ .SinglePerlin = .{
+                    self.scene = .{ .SinglePerlin = .{
                         .t = 0,
                         .perlin = .{},
                     } };
@@ -364,7 +264,7 @@ pub const ScenePerlin1d = struct {
                 fonts.g_linssen.draw_text(0, "sample random points in [-1,1]", 80, 220, consts.pico_black);
 
                 if (clicked) {
-                    self.state = .{
+                    self.scene = .{
                         .PerlinOctaves = .{
                             .t = 0,
                             .perlins = perlin.make_three_perlins(),
@@ -389,7 +289,7 @@ pub const ScenePerlin1d = struct {
                         p.t = 600;
                     }
 
-                    self.state = .{
+                    self.scene = .{
                         .MergedPerlin = .{
                             .t = 0,
                             .perlins = x.perlins,
@@ -444,7 +344,7 @@ pub const ScenePerlin1d = struct {
                 fonts.g_linssen.draw_text(0, "sum the layers together", 100, 215, consts.pico_black);
 
                 if (clicked) {
-                    self.state = .{ .Trick1 = .{ .t = 0 } };
+                    self.scene = .{ .Trick1 = .{ .t = 0 } };
                 }
             },
             .Trick1 => |*x| {
@@ -458,7 +358,7 @@ pub const ScenePerlin1d = struct {
                 fonts.g_linssen.draw_text_state(x.t, "(making things move)", 80, 130, styling, &font_state);
 
                 if (clicked) {
-                    self.state = .{ .IntroOsc = .{ .t = 0 } };
+                    self.scene = .{ .IntroOsc = .{ .t = 0 } };
                     g_shader_noise_dump = 0.5;
                     g_screenshake = 1.0;
                 }
@@ -477,7 +377,7 @@ pub const ScenePerlin1d = struct {
 
                 if (clicked) {
                     // Carry over t so that the animations line up
-                    self.state = .{ .OscStackedCentral = .{ .t = state.t } };
+                    self.scene = .{ .OscStackedCentral = .{ .t = state.t } };
                 }
             },
             .OscStackedCentral => |*state| {
@@ -538,7 +438,7 @@ pub const ScenePerlin1d = struct {
                 fonts.g_linssen.draw_text(0, "each with same period but decreasing amplitudes", 30, 220, consts.pico_black);
 
                 if (clicked) {
-                    self.state = .{ .OscStackedTipTail = .{ .t = state.t } };
+                    self.scene = .{ .OscStackedTipTail = .{ .t = state.t } };
                 }
             },
             .OscStackedTipTail => |*state| {
@@ -611,7 +511,7 @@ pub const ScenePerlin1d = struct {
                 fonts.g_linssen.draw_text_state(state.t, "y = r0*sin(t + t0) + r1*sin(t + t1) + r2*sin(t + t2)", 30, 210, styling, &font_state);
 
                 if (clicked) {
-                    self.state = .{ .OscStackedMovable = .{ .t = state.t } };
+                    self.scene = .{ .OscStackedMovable = .{ .t = state.t } };
                 }
             },
             .OscStackedMovable => |*state| {
@@ -681,7 +581,7 @@ pub const ScenePerlin1d = struct {
                 fonts.g_linssen.draw_text(0, "varying the inner oscillator", 70, 210, consts.pico_black);
 
                 if (clicked) {
-                    self.state = .{ .OscLandscapeSingle = .{
+                    self.scene = .{ .OscLandscapeSingle = .{
                         .t = 0,
                         .landscape = .{},
                     } };
@@ -742,7 +642,7 @@ pub const ScenePerlin1d = struct {
                         .r = r * 0.25,
                     };
 
-                    self.state = .{ .OscLandscape = .{
+                    self.scene = .{ .OscLandscape = .{
                         .t = 0,
                         .landscapes = landscapes,
                     } };
@@ -791,7 +691,7 @@ pub const ScenePerlin1d = struct {
                 }
 
                 if (clicked) {
-                    self.state = .{ .Trick2 = .{ .t = 0 } };
+                    self.scene = .{ .Trick2 = .{ .t = 0 } };
                 }
             },
             .Trick2 => |*x| {
@@ -810,7 +710,7 @@ pub const ScenePerlin1d = struct {
                     //perlins[1].y0 = consts.screen_height_f * 0.5;
                     //perlins[2].y0 = consts.screen_height_f * 0.5;
 
-                    //self.state = .{
+                    //self.scene = .{
                     //    .WrapStatic = .{
                     //        .t = 0,
                     //        .perlin = .{
@@ -853,7 +753,7 @@ pub const ScenePerlin1d = struct {
                         .r = r * 0.25,
                     };
 
-                    self.state = .{
+                    self.scene = .{
                         .WrapStatic = .{
                             .t = 0,
                             .perlin = .{
@@ -888,7 +788,7 @@ pub const ScenePerlin1d = struct {
                 if (clicked) {
                     g_screenshake = 0.5;
                     g_shader_noise_dump = 0.5;
-                    self.state = .{
+                    self.scene = .{
                         .PlanetInterp = .{
                             .t = 0,
                             .planet = Planet{
@@ -919,7 +819,7 @@ pub const ScenePerlin1d = struct {
                     var tree = .{
                         .angle = 0.75 * TAU,
                     };
-                    self.state = .{
+                    self.scene = .{
                         .PlanetPropPos = .{
                             .t = 0,
                             .planet = new_planet,
@@ -949,7 +849,7 @@ pub const ScenePerlin1d = struct {
                 fonts.g_linssen.draw_text(0, "sticking object to the surface", 50, 210, consts.pico_black);
 
                 if (clicked) {
-                    self.state = .{
+                    self.scene = .{
                         .PlanetPropTangent = .{
                             .t = 0,
                             .planet = x.planet,
@@ -988,7 +888,7 @@ pub const ScenePerlin1d = struct {
                 if (clicked) {
                     g_screenshake = 0.5;
                     g_shader_noise_dump = 0.5;
-                    self.state = .{
+                    self.scene = .{
                         .OscSlam = .{
                             .t = 0,
                             .planet = x.planet,
@@ -1083,7 +983,7 @@ pub const ScenePerlin1d = struct {
                         .angle = 0.4 * TAU,
                     }) catch unreachable;
                     var rocks = std.ArrayList(Rock).init(alloc.gpa.allocator());
-                    self.state = .{
+                    self.scene = .{
                         .PlanetProps = .{
                             .t = 0,
                             .planet = new_planet,
@@ -1094,65 +994,8 @@ pub const ScenePerlin1d = struct {
                 }
             },
             .PlanetProps => |*x| {
-                x.planet.world.pos.y = utils.dan_lerp(x.planet.world.pos.y, consts.screen_height_f * 0.5, 15);
-
-                x.t += 1;
-                x.planet.world.tick();
-
-                var new_rocks = std.ArrayList(Rock).init(alloc.gpa.allocator());
-
-                for (x.rocks.items) |*rock| {
-                    if (rock.tick(&x.planet)) {
-                        new_rocks.append(rock.*) catch unreachable;
-                    } else {
-                        if (rock.r > 2.0) {
-                            g_screenshake = @max(g_screenshake, rock.r * 0.2);
-                        }
-
-                        if (rock.r > 3) {
-                            var delta = utils.sub_v2(rock.pos, x.planet.world.pos);
-                            var angle = std.math.atan2(f32, delta.y, delta.x);
-                            for (0..8) |i| {
-                                var rand = FroggyRand.init(x.t);
-                                rand = rand.subrand(i);
-                                var r = rand.gen_froggy("r", 0.2, 1.8, 2);
-                                var pos_on_surface = x.planet.world.pos_on_surface(angle, 0.1 + r);
-
-                                var vel_angle = angle + rand.gen_f32_range("a", -1.0, 1.0) * 0.1;
-                                var spd = rand.gen_froggy("s", 0.3, 2.5, 2) * 1.25;
-                                var vel: rl.Vector2 = .{ .x = std.math.cos(vel_angle) * spd, .y = std.math.sin(vel_angle) * spd };
-
-                                new_rocks.append(.{
-                                    .pos = pos_on_surface,
-                                    .vel = vel,
-                                    .r = r,
-                                    .sides = rand.gen_i32_range("sides", 3, 8),
-                                    .lifetime = rand.gen_i32_range("life", 20, 60),
-                                }) catch unreachable;
-                            }
-                        }
-                    }
-                }
-
-                x.rocks.deinit();
-                x.rocks = new_rocks;
-
-                if (clicked) {
-                    x.rocks.append(Rock.new(x.t)) catch unreachable;
-                }
-
-                for (x.trees.items) |*tree| {
-                    tree.tick(&x.planet);
-                }
-                x.planet.draw();
-
-                for (x.trees.items) |*tree| {
-                    tree.draw(&x.planet);
-                }
-                for (x.rocks.items) |*rock| {
-                    rock.draw();
-                }
-
+                var create_rock = clicked;
+                x.draw(create_rock);
                 fonts.g_linssen.draw_text(0, "it's all coming together", 70, 210, consts.pico_black);
             },
             else => {
@@ -1516,3 +1359,71 @@ pub fn get_slam_target(t: f32) f32 {
     var target = tt + delta;
     return (target - 0.5 * TAU) / k;
 }
+
+const FinalSceneState = struct {
+    t: i32,
+    planet: Planet,
+    rocks: std.ArrayList(Rock),
+    trees: std.ArrayList(Tree),
+
+    pub fn draw(self: *FinalSceneState, create_rock: bool) void {
+        self.planet.world.pos.y = utils.dan_lerp(self.planet.world.pos.y, consts.screen_height_f * 0.5, 15);
+
+        self.t += 1;
+        self.planet.world.tick();
+
+        var new_rocks = std.ArrayList(Rock).init(alloc.gpa.allocator());
+
+        for (self.rocks.items) |*rock| {
+            if (rock.tick(&self.planet)) {
+                new_rocks.append(rock.*) catch unreachable;
+            } else {
+                if (rock.r > 2.0) {
+                    g_screenshake = @max(g_screenshake, rock.r * 0.2);
+                }
+
+                if (rock.r > 3) {
+                    var delta = utils.sub_v2(rock.pos, self.planet.world.pos);
+                    var angle = std.math.atan2(f32, delta.y, delta.x);
+                    for (0..8) |i| {
+                        var rand = FroggyRand.init(self.t);
+                        rand = rand.subrand(i);
+                        var r = rand.gen_froggy("r", 0.2, 1.8, 2);
+                        var pos_on_surface = self.planet.world.pos_on_surface(angle, 0.1 + r);
+
+                        var vel_angle = angle + rand.gen_f32_range("a", -1.0, 1.0) * 0.1;
+                        var spd = rand.gen_froggy("s", 0.3, 2.5, 2) * 1.25;
+                        var vel: rl.Vector2 = .{ .x = std.math.cos(vel_angle) * spd, .y = std.math.sin(vel_angle) * spd };
+
+                        new_rocks.append(.{
+                            .pos = pos_on_surface,
+                            .vel = vel,
+                            .r = r,
+                            .sides = rand.gen_i32_range("sides", 3, 8),
+                            .lifetime = rand.gen_i32_range("life", 20, 60),
+                        }) catch unreachable;
+                    }
+                }
+            }
+        }
+
+        self.rocks.deinit();
+        self.rocks = new_rocks;
+
+        if (create_rock) {
+            self.rocks.append(Rock.new(self.t)) catch unreachable;
+        }
+
+        for (self.trees.items) |*tree| {
+            tree.tick(&self.planet);
+        }
+        self.planet.draw();
+
+        for (self.trees.items) |*tree| {
+            tree.draw(&self.planet);
+        }
+        for (self.rocks.items) |*rock| {
+            rock.draw();
+        }
+    }
+};
