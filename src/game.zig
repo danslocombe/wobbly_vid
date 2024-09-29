@@ -22,6 +22,7 @@ const camera_min_y = -100;
 const camera_max_y = 500;
 
 const TAU = std.math.tau;
+const PI = std.math.pi;
 
 pub var g_shader_noise_dump: f32 = 0.0;
 pub var g_screenshake: f32 = 0.0;
@@ -87,7 +88,7 @@ pub const Game = struct {
             self.camera_x = std.math.clamp(self.camera_x_base + std.math.cos(screenshake_angle) * screenshake_mag, camera_min_x, camera_max_x);
             self.camera_y = std.math.clamp(self.camera_y_base + std.math.sin(screenshake_angle) * screenshake_mag, camera_min_y, camera_max_y);
 
-            utils.g_mouse_world = utils.sub_v2(utils.g_mouse_screen, .{ .x = self.camera_x, .y = self.camera_y });
+            utils.g_mouse_world = utils.add_v2(utils.g_mouse_screen, .{ .x = self.camera_x, .y = self.camera_y });
 
             self.screenshake_t -= 1;
         }
@@ -174,6 +175,8 @@ fn draw_particle_frame_scaled(frame: usize, pos: rl.Vector2, scale_x: f32, scale
 pub const Scene = union(enum) {
     Intro: struct { t: i32 },
     EndGoal: FinalSceneState,
+    ConcreteWhatWeWant: struct { t: i32 },
+    BadImplementation: struct { t: i32 },
     SinglePerlin: struct { t: i32, perlin: perlin.AnimatedPerlin },
     PerlinOctaves: struct { t: i32, perlins: [3]perlin.AnimatedPerlin },
     MergedPerlin: struct { t: i32, perlins: [3]perlin.AnimatedPerlin },
@@ -229,6 +232,7 @@ pub const Slideshow = struct {
 
         var clicked = rl.IsMouseButtonPressed(rl.MouseButton.MOUSE_BUTTON_LEFT) or rl.IsKeyPressed(rl.KeyboardKey.KEY_F);
         var space_down = rl.IsKeyDown(rl.KeyboardKey.KEY_SPACE);
+        var alt_key_pressed = rl.IsKeyPressed(rl.KeyboardKey.KEY_Q);
 
         switch (self.scene) {
             .Intro => |*x| {
@@ -249,11 +253,109 @@ pub const Slideshow = struct {
                 if (clicked) {
                     g_shader_noise_dump = 0.5;
                     g_screenshake = 1.0;
-                    self.scene = .{ .SinglePerlin = .{
-                        .t = 0,
-                        .perlin = .{},
-                    } };
+                    //self.scene = .{ .SinglePerlin = .{} };
+                    var planet = Planet{
+                        .world = world.World.new(0, .{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 }, 64, 16),
+                    };
+
+                    self.scene = .{
+                        .EndGoal = FinalSceneState.init(planet),
+                    };
+                    //self.scene = .{ .SinglePerlin = .{
+                    //    .t = 0,
+                    //    .perlin = .{},
+                    //} };
                 }
+            },
+            .EndGoal => |*state| {
+                state.draw(clicked);
+                if (alt_key_pressed) {
+                    self.scene = .{
+                        .ConcreteWhatWeWant = .{
+                            .t = 0,
+                        },
+                    };
+                }
+
+                fonts.g_linssen.draw_text(0, "end goal", 120, 220, consts.pico_black);
+            },
+            .ConcreteWhatWeWant => |*state| {
+                state.t += 1;
+                //utils.draw_circle_lines(utils.g_mouse_world, 4, consts.pico_red);
+
+                var c = .{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 };
+
+                var delta = utils.sub_v2(utils.g_mouse_world, c);
+
+                var angle: f32 = 0.0;
+                if (!utils.close_to_zero(delta)) {
+                    angle = std.math.atan2(f32, delta.y, delta.x);
+                }
+
+                angle = world.normalize_angle(angle);
+
+                utils.draw_circle_lines(c, 4, consts.pico_blue);
+                rl.DrawLineV(c, utils.add_v2(c, .{ .x = 10 }), consts.pico_sea);
+
+                //rl.DrawCircleSectorLines(c, 5.0, 90 - (angle * 360 / TAU), 90, 8, consts.pico_sea);
+
+                rl.DrawCircleSectorLines(c, 5.0, 90, 360 + 90 - (angle * 360 / TAU), 8, consts.pico_sea);
+
+                //var angle_delta_clockwise = utils.min_distance_between_angles_clockwise(0, angle);
+                var angle_delta_anticlockwise = utils.min_distance_between_angles_clockwise(angle, 0);
+                //var text_angle = 0.5 * PI - utils.normalize_angle(angle_delta_anticlockwise);
+
+                //if (@mod(@divFloor(state.t, 30), 2) == 0) {
+                //if (@mod(state.t, 30) == 0) {
+                //    std.debug.print("Clockwise delta {d:.2} ({d:.2}TAU)\n", .{ angle_delta_clockwise, angle_delta_clockwise / TAU });
+                //}
+
+                var text_angle = -0.5 * utils.normalize_angle(angle_delta_anticlockwise);
+
+                //if (@mod(state.t, 30) == 0) {
+                //    std.debug.print("Text angle {d:.2} ({d:.2}TAU)\n", .{ text_angle, text_angle / TAU });
+                //}
+                //var text_angle = 0.5 * world.normalize_angle(angle + 0.5 * PI);
+
+                var text_pos = utils.sub_v2(utils.add_v2(c, utils.scaled_from_angle(text_angle, 13)), .{ .x = 3, .y = 5 });
+                fonts.g_linssen.draw_text(0, "a", text_pos.x, text_pos.y, consts.pico_black);
+
+                const r_base = 64;
+                const r_vary = 8;
+                var p = utils.add_v2(c, utils.scaled_from_angle(angle, r_base));
+
+                utils.draw_broken_line(c, p, 1.0, 1.0, consts.pico_blue);
+
+                var prev: rl.Vector2 = .{};
+                const k = 16;
+                for (0..k) |i| {
+                    var i_n = @as(f32, @floatFromInt(i)) / k;
+                    var angle_off = 0.3 * (i_n - 0.5);
+
+                    const sample = 0;
+                    var pp = utils.add_v2(c, utils.scaled_from_angle(angle + angle_off, r_base + r_vary * sample));
+
+                    if (i != 0) {
+                        //rl.DrawLineV(prev, pp, consts.pico_blue);
+                        utils.draw_broken_line(prev, pp, 1.0, 1.0, consts.pico_blue);
+                    }
+
+                    prev = pp;
+                }
+
+                fonts.g_linssen.draw_text(0, "what do we want", 120, 220, consts.pico_black);
+
+                if (clicked) {
+                    self.scene = .{
+                        .BadImplementation = .{
+                            .t = 0,
+                        },
+                    };
+                }
+            },
+            .BadImplementation => |*state| {
+                state.t += 1;
+                fonts.g_linssen.draw_text(0, "bad implementation", 120, 220, consts.pico_black);
             },
             .SinglePerlin => |*x| {
                 x.t += 1;
@@ -948,7 +1050,7 @@ pub const Slideshow = struct {
                         x.paused = true;
                         x.just_slammed = true;
 
-                        x.ongoing_slam_offset_t = get_slam_target(x.t);
+                        x.ongoing_slam_offset_t = world.get_slam_target(x.t);
 
                         create_particles(&x.particles, @intFromFloat(x.t), utils.add_v2(x.player_state.last_pos, .{ .x = 4 * 2, .y = 10 * 2 + 4 }), 4, 2.0);
                     }
@@ -972,30 +1074,13 @@ pub const Slideshow = struct {
                     //new_planet.world.pos.y -= 40;
                     //new_planet.draw_oscs = false;
                     new_planet.draw_oscs_arrows = true;
-                    var trees = std.ArrayList(Tree).init(alloc.gpa.allocator());
-                    trees.append(.{
-                        .angle = 0.723 * TAU,
-                    }) catch unreachable;
-                    trees.append(.{
-                        .angle = 0.89 * TAU,
-                    }) catch unreachable;
-                    trees.append(.{
-                        .angle = 0.4 * TAU,
-                    }) catch unreachable;
-                    var rocks = std.ArrayList(Rock).init(alloc.gpa.allocator());
                     self.scene = .{
-                        .PlanetProps = .{
-                            .t = 0,
-                            .planet = new_planet,
-                            .trees = trees,
-                            .rocks = rocks,
-                        },
+                        .PlanetProps = FinalSceneState.init(new_planet),
                     };
                 }
             },
             .PlanetProps => |*x| {
-                var create_rock = clicked;
-                x.draw(create_rock);
+                x.draw(alt_key_pressed);
                 fonts.g_linssen.draw_text(0, "it's all coming together", 70, 210, consts.pico_black);
             },
             else => {
@@ -1288,83 +1373,32 @@ pub fn create_particles(particles: *std.ArrayList(Particle), t: i32, p_pos: rl.V
     }
 }
 
-pub fn get_slam_target(t: f32) f32 {
-    const k = 0.02;
-
-    var tt = t * k + 0.5 * TAU;
-
-    var move_val: f32 = 0.8;
-
-    // If you imagine the oscillator tracing a sine wave, we want to
-    // "move" the current time of the oscillator towards a trough (-1)
-    //
-    //                    _ _
-    //  |               /     \
-    //  |\            /         \
-    //  |  |         |           |
-    //  -----------------------------------------------
-    //  |  |         |
-    //  |    \ _ _ /
-    //  |
-    //          |
-    //          target
-    //
-
-    // We start by finding the current cycle number we are on and isolating focusing just on that
-    var a = std.math.floor(tt / TAU);
-    var b = tt - TAU * a;
-
-    // b is the local position in the current cycle and b_target will be the local minimum
-    // We decide b_target by looking at where we are in the current cycle
-    // We either want target_0 or target_1
-    //
-    //              _|_
-    //          | /  |  \
-    //          |/   |   \
-    //          |    |    |
-    //          -----|---------------------------------------
-    //   |      |    |     |       |
-    //    \_ _ /|    |      \ _ _ /
-    //      |   |    |
-    //      |   0    |         |
-    //      |        |         target_1
-    //      target_0 |
-    //               |
-    //               |
-    //     Left of this line we go to target_0
-    //     Right of this line we go to target_1
-
-    std.debug.print("a: {d:.2}, b: {d:.2} ({d:.2}tau)\n", .{ a, b, b / TAU });
-    var b_target: f32 = 0.0;
-    if (b < 0.25 * TAU) {
-        std.debug.print("CASE A\n", .{});
-        b_target = -0.25 * TAU;
-    } else {
-        std.debug.print("CASE B\n", .{});
-        b_target = 0.75 * TAU;
-    }
-
-    var delta = b_target - b;
-
-    std.debug.print("delta: {d:.2} ({d:.2}tau)\n", .{ delta, delta / TAU });
-
-    // If the difference between b and b_target is greater than the max move value determined by the force
-    // we cap it.
-    if (std.math.fabs(delta) > move_val) {
-        delta = std.math.sign(delta) * move_val;
-    }
-
-    std.debug.print("realised delta: {d:.2} ({d:.2}tau)\n", .{ delta, delta / TAU });
-
-    var target = tt + delta;
-    return (target - 0.5 * TAU) / k;
-}
-
 const FinalSceneState = struct {
     t: i32,
     planet: Planet,
     rocks: std.ArrayList(Rock),
     trees: std.ArrayList(Tree),
+
+    pub fn init(new_planet: Planet) FinalSceneState {
+        var trees = std.ArrayList(Tree).init(alloc.gpa.allocator());
+        trees.append(.{
+            .angle = 0.723 * TAU,
+        }) catch unreachable;
+        trees.append(.{
+            .angle = 0.89 * TAU,
+        }) catch unreachable;
+        trees.append(.{
+            .angle = 0.4 * TAU,
+        }) catch unreachable;
+        var rocks = std.ArrayList(Rock).init(alloc.gpa.allocator());
+
+        return .{
+            .t = 0,
+            .planet = new_planet,
+            .trees = trees,
+            .rocks = rocks,
+        };
+    }
 
     pub fn draw(self: *FinalSceneState, create_rock: bool) void {
         self.planet.world.pos.y = utils.dan_lerp(self.planet.world.pos.y, consts.screen_height_f * 0.5, 15);

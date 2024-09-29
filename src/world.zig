@@ -279,3 +279,75 @@ fn angle_diff(x: f32, y: f32) f32 {
 fn min_dist(x: f32, y: f32) f32 {
     return std.math.fabs(angle_diff(x, y));
 }
+
+pub fn get_slam_target(t: f32) f32 {
+    const k = 0.02;
+
+    var tt = t * k + 0.5 * TAU;
+
+    var move_val: f32 = 0.8;
+
+    // If you imagine the oscillator tracing a sine wave, we want to
+    // "move" the current time of the oscillator towards a trough (-1)
+    //
+    //                    _ _
+    //  |               /     \
+    //  |\            /         \
+    //  |  |         |           |
+    //  -----------------------------------------------
+    //  |  |         |
+    //  |    \ _ _ /
+    //  |
+    //          |
+    //          target
+    //
+
+    // We start by finding the current cycle number we are on and isolating focusing just on that
+    var a = std.math.floor(tt / TAU);
+    var b = tt - TAU * a;
+
+    // b is the local position in the current cycle and b_target will be the local minimum
+    // We decide b_target by looking at where we are in the current cycle
+    // We either want target_0 or target_1
+    //
+    //              _|_
+    //          | /  |  \
+    //          |/   |   \
+    //          |    |    |
+    //          -----|---------------------------------------
+    //   |      |    |     |       |
+    //    \_ _ /|    |      \ _ _ /
+    //      |   |    |
+    //      |   0    |         |
+    //      |        |         target_1
+    //      target_0 |
+    //               |
+    //               |
+    //     Left of this line we go to target_0
+    //     Right of this line we go to target_1
+
+    std.debug.print("a: {d:.2}, b: {d:.2} ({d:.2}tau)\n", .{ a, b, b / TAU });
+    var b_target: f32 = 0.0;
+    if (b < 0.25 * TAU) {
+        std.debug.print("CASE A\n", .{});
+        b_target = -0.25 * TAU;
+    } else {
+        std.debug.print("CASE B\n", .{});
+        b_target = 0.75 * TAU;
+    }
+
+    var delta = b_target - b;
+
+    std.debug.print("delta: {d:.2} ({d:.2}tau)\n", .{ delta, delta / TAU });
+
+    // If the difference between b and b_target is greater than the max move value determined by the force
+    // we cap it.
+    if (std.math.fabs(delta) > move_val) {
+        delta = std.math.sign(delta) * move_val;
+    }
+
+    std.debug.print("realised delta: {d:.2} ({d:.2}tau)\n", .{ delta, delta / TAU });
+
+    var target = tt + delta;
+    return (target - 0.5 * TAU) / k;
+}

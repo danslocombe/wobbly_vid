@@ -28,7 +28,7 @@ pub fn main() anyerror!void {
     //rl.SetTargetFPS(144);
     rl.SetTargetFPS(60);
 
-    rl.ToggleFullscreen();
+    //rl.ToggleFullscreen();
 
     const args = try std.process.argsAlloc(alloc.gpa.allocator());
     _ = args;

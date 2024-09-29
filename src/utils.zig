@@ -1,6 +1,8 @@
 const std = @import("std");
 const rl = @import("raylib");
 const consts = @import("consts.zig");
+pub const normalize_angle = @import("world.zig").normalize_angle;
+
 pub var g_mouse_screen: rl.Vector2 = .{ .x = 0, .y = 0 };
 pub var g_mouse_world: rl.Vector2 = .{};
 
@@ -182,4 +184,39 @@ pub fn draw_arrow(start_x: i32, start_y: i32, end_x: i32, end_y: i32, col: rl.Co
     xx = end_x + @as(i32, @intFromFloat(l * std.math.cos(angle - arrowhead_angle)));
     yy = end_y + @as(i32, @intFromFloat(l * std.math.sin(angle - arrowhead_angle)));
     rl.DrawLine(end_x, end_y, xx, yy, col);
+}
+
+pub fn draw_circle_lines(p: rl.Vector2, r: f32, col: rl.Color) void {
+    rl.DrawCircleLines(@intFromFloat(p.x), @intFromFloat(p.y), r, col);
+}
+
+pub fn close_to_zero(p: rl.Vector2) bool {
+    return std.math.fabs(p.x) < 0.01 and std.math.fabs(p.y) < 0.01;
+}
+
+pub fn unit_from_angle(angle: f32) rl.Vector2 {
+    return .{
+        .x = std.math.cos(angle),
+        .y = std.math.sin(angle),
+    };
+}
+
+pub fn scaled_from_angle(angle: f32, scale: f32) rl.Vector2 {
+    return .{
+        .x = scale * std.math.cos(angle),
+        .y = scale * std.math.sin(angle),
+    };
+}
+
+pub fn min_distance_between_angles_clockwise(a0: f32, a: f32) f32 {
+    var a0_n = normalize_angle(a0);
+    var a_n = normalize_angle(a);
+
+    var delta = a_n - a0_n;
+
+    if (delta < 0.0) {
+        delta += std.math.tau;
+    }
+
+    return delta;
 }
