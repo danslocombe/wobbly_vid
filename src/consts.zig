@@ -1,8 +1,8 @@
 const std = @import("std");
 const rl = @import("raylib");
 
-pub const screen_width = 320;
-pub const screen_width_f = @as(f32, @floatFromInt(320));
+pub const screen_width = 426;
+pub const screen_width_f = @as(f32, @floatFromInt(426));
 pub const screen_height = 240;
 pub const screen_height_f = @as(f32, @floatFromInt(240));
 

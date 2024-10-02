@@ -124,6 +124,9 @@ pub const Game = struct {
         }
 
         self.slideshow.draw();
+
+        sprites.g_sprites.draw_frame("cursor", 0, utils.add_v2(utils.g_mouse_world, .{ .y = 4 }));
+
         camera.End();
     }
 };
@@ -175,7 +178,10 @@ fn draw_particle_frame_scaled(frame: usize, pos: rl.Vector2, scale_x: f32, scale
 pub const Scene = union(enum) {
     Intro: struct { t: i32 },
     EndGoal: FinalSceneState,
-    ConcreteWhatWeWant: struct { t: i32 },
+    RadarScanning: struct { t: i32 },
+    JoiningUpLines: struct { t: i32 },
+    BadOne_Samples: struct { t: i32, perlin: perlin.AnimatedPerlin },
+    BadOne_JoiningUpLines: struct { t: i32 },
     BadImplementation: struct { t: i32 },
     SinglePerlin: struct { t: i32, perlin: perlin.AnimatedPerlin },
     PerlinOctaves: struct { t: i32, perlins: [3]perlin.AnimatedPerlin },
@@ -271,7 +277,7 @@ pub const Slideshow = struct {
                 state.draw(clicked);
                 if (alt_key_pressed) {
                     self.scene = .{
-                        .ConcreteWhatWeWant = .{
+                        .RadarScanning = .{
                             .t = 0,
                         },
                     };
@@ -279,7 +285,7 @@ pub const Slideshow = struct {
 
                 fonts.g_linssen.draw_text(0, "end goal", 120, 220, consts.pico_black);
             },
-            .ConcreteWhatWeWant => |*state| {
+            .RadarScanning => |*state| {
                 state.t += 1;
                 //utils.draw_circle_lines(utils.g_mouse_world, 4, consts.pico_red);
 
@@ -294,7 +300,6 @@ pub const Slideshow = struct {
 
                 angle = world.normalize_angle(angle);
 
-                utils.draw_circle_lines(c, 4, consts.pico_blue);
                 rl.DrawLineV(c, utils.add_v2(c, .{ .x = 10 }), consts.pico_sea);
 
                 //rl.DrawCircleSectorLines(c, 5.0, 90 - (angle * 360 / TAU), 90, 8, consts.pico_sea);
@@ -347,7 +352,154 @@ pub const Slideshow = struct {
 
                 if (clicked) {
                     self.scene = .{
-                        .BadImplementation = .{
+                        .JoiningUpLines = .{
+                            .t = 0,
+                        },
+                    };
+                }
+            },
+            .JoiningUpLines => |*state| {
+                state.t += 1;
+
+                var angle = @as(f32, @floatFromInt(state.t)) * 0.01;
+                angle = @min(TAU, angle);
+
+                var c = .{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 };
+
+                var draw_angle = TAU - angle;
+
+                rl.DrawLineV(c, utils.add_v2(c, .{ .x = 10 }), consts.pico_sea);
+
+                rl.DrawCircleSectorLines(c, 5.0, 90, 360 + 90 - (draw_angle * 360 / TAU), 8, consts.pico_sea);
+                var angle_delta_anticlockwise = utils.min_distance_between_angles_clockwise(draw_angle, 0);
+                var text_angle = -0.5 * utils.normalize_angle(angle_delta_anticlockwise);
+                var text_pos = utils.sub_v2(utils.add_v2(c, utils.scaled_from_angle(text_angle, 13)), .{ .x = 3, .y = 5 });
+                fonts.g_linssen.draw_text(0, "a", text_pos.x, text_pos.y, consts.pico_black);
+
+                const r_base = 64;
+                const r_vary = 8;
+                var p = utils.add_v2(c, utils.scaled_from_angle(draw_angle, r_base));
+
+                utils.draw_broken_line(c, p, 1.0, 1.0, consts.pico_blue);
+
+                var prev: rl.Vector2 = .{};
+                const k = 64;
+                var one_last_draw = false;
+                for (0..k) |i| {
+                    if (one_last_draw) {
+                        break;
+                    }
+
+                    var i_n = @as(f32, @floatFromInt(i)) / k;
+                    var a = TAU * i_n;
+                    if (a > angle) {
+                        a = angle;
+                        one_last_draw = true;
+                    }
+
+                    var draw_a = TAU - a;
+
+                    const sample = 0;
+                    var pp = utils.add_v2(c, utils.scaled_from_angle(draw_a, r_base + r_vary * sample));
+
+                    if (i != 0) {
+                        rl.DrawLineV(prev, pp, consts.pico_blue);
+                    }
+
+                    utils.draw_circle_lines(pp, 1.0, consts.pico_sea);
+
+                    prev = pp;
+                }
+
+                fonts.g_linssen.draw_text(0, "what do we want", 120, 220, consts.pico_black);
+
+                if (clicked) {
+                    self.scene = .{
+                        .BadOne_Samples = .{
+                            .t = 0,
+                            .perlin = .{},
+                        },
+                    };
+                }
+            },
+            .BadOne_Samples => |*x| {
+                x.t += 1;
+                x.perlin.tick();
+                x.perlin.draw();
+
+                fonts.g_linssen.draw_text(0, "sample random points in [-1,1]", 80, 220, consts.pico_black);
+
+                if (clicked) {
+                    self.scene = .{
+                        .BadOne_JoiningUpLines = .{
+                            .t = 0,
+                        },
+                    };
+                }
+            },
+
+            .BadOne_JoiningUpLines => |*state| {
+                state.t += 1;
+
+                var angle = @as(f32, @floatFromInt(state.t)) * 0.01;
+                angle = @min(TAU, angle);
+
+                var c = .{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 };
+
+                var draw_angle = TAU - angle;
+
+                rl.DrawLineV(c, utils.add_v2(c, .{ .x = 10 }), consts.pico_sea);
+
+                rl.DrawCircleSectorLines(c, 5.0, 90, 360 + 90 - (draw_angle * 360 / TAU), 8, consts.pico_sea);
+                var angle_delta_anticlockwise = utils.min_distance_between_angles_clockwise(draw_angle, 0);
+                var text_angle = -0.5 * utils.normalize_angle(angle_delta_anticlockwise);
+                var text_pos = utils.sub_v2(utils.add_v2(c, utils.scaled_from_angle(text_angle, 13)), .{ .x = 3, .y = 5 });
+                fonts.g_linssen.draw_text(0, "a", text_pos.x, text_pos.y, consts.pico_black);
+
+                const r_base = 64;
+                const r_vary = 8;
+                var p = utils.add_v2(c, utils.scaled_from_angle(draw_angle, r_base));
+
+                utils.draw_broken_line(c, p, 1.0, 1.0, consts.pico_blue);
+
+                var rand = FroggyRand.init(0);
+
+                var prev: rl.Vector2 = .{};
+                const k = 64;
+                var one_last_draw = false;
+                for (0..(k + 1)) |p_i| {
+                    var i = @mod(p_i, k);
+
+                    if (one_last_draw) {
+                        break;
+                    }
+
+                    var i_n = @as(f32, @floatFromInt(i)) / k;
+                    var a = TAU * i_n;
+                    if (a > angle) {
+                        a = angle;
+                        one_last_draw = true;
+                    }
+
+                    var draw_a = TAU - a;
+
+                    const sample = rand.gen_f32_one_minus_one(i);
+                    var pp = utils.add_v2(c, utils.scaled_from_angle(draw_a, r_base + r_vary * sample));
+
+                    if (p_i != 0) {
+                        rl.DrawLineV(prev, pp, consts.pico_blue);
+                    }
+
+                    utils.draw_circle_lines(pp, 1.0, consts.pico_sea);
+
+                    prev = pp;
+                }
+
+                fonts.g_linssen.draw_text(0, "joining up lines bad", 120, 220, consts.pico_black);
+
+                if (clicked) {
+                    self.scene = .{
+                        .BadOne_JoiningUpLines = .{
                             .t = 0,
                         },
                     };

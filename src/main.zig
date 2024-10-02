@@ -24,6 +24,7 @@ pub fn main() anyerror!void {
     //rl.InitWindow(640, 480, "Video");
     rl.InitWindow(2560, 1440, "Video");
     //rl.ToggleBorderlessWindowed();
+    rl.HideCursor();
 
     //rl.SetTargetFPS(144);
     rl.SetTargetFPS(60);
