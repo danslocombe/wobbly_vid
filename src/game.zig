@@ -178,11 +178,13 @@ fn draw_particle_frame_scaled(frame: usize, pos: rl.Vector2, scale_x: f32, scale
 pub const Scene = union(enum) {
     Intro: struct { t: i32 },
     EndGoal: FinalSceneState,
+    WhatDoWeWant: struct { t: i32 },
     RadarScanning: struct { t: i32 },
     JoiningUpLines: struct { t: i32 },
+    BadOne_Intro: struct { t: i32 },
     BadOne_Samples: struct { t: i32, perlin: perlin.AnimatedPerlin },
     BadOne_JoiningUpLines: struct { t: i32 },
-    BadImplementation: struct { t: i32 },
+    Perlin_Intro: struct { t: i32 },
     SinglePerlin: struct { t: i32, perlin: perlin.AnimatedPerlin },
     PerlinOctaves: struct { t: i32, perlins: [3]perlin.AnimatedPerlin },
     MergedPerlin: struct { t: i32, perlins: [3]perlin.AnimatedPerlin },
@@ -244,7 +246,7 @@ pub const Slideshow = struct {
             .Intro => |*x| {
                 x.t += 1;
                 //fonts.g_linssen.draw_text(0, "making interesting things boring", 60, 150, consts.pico_black);
-                sprites.draw_blob_text("maths", .{ .x = 100, .y = 100 });
+                sprites.draw_blob_text("hello", .{ .x = 100, .y = 100 });
                 //sprites.draw_blob_text("maths", .{ .x = 100, .y = 100 });
 
                 var styling = Styling{
@@ -254,7 +256,7 @@ pub const Slideshow = struct {
                 };
                 var font_state = fonts.DrawTextState{};
                 //fonts.g_linssen.draw_text_state(x.t, "rigorous fun!", 30, 210, styling, &font_state);
-                fonts.g_ui.draw_text_state(x.t, "perlin noise!", 80, 130, styling, &font_state);
+                fonts.g_ui.draw_text_state(x.t, "wobly worlds", 80, 130, styling, &font_state);
 
                 if (clicked) {
                     g_shader_noise_dump = 0.5;
@@ -277,13 +279,25 @@ pub const Slideshow = struct {
                 state.draw(clicked);
                 if (alt_key_pressed) {
                     self.scene = .{
-                        .RadarScanning = .{
+                        .WhatDoWeWant = .{
                             .t = 0,
                         },
                     };
                 }
 
                 fonts.g_linssen.draw_text(0, "end goal", 120, 220, consts.pico_black);
+            },
+            .WhatDoWeWant => |*x| {
+                x.t += 1;
+                sprites.draw_blob_text("what do we need", .{ .x = 100, .y = 100 });
+
+                if (clicked) {
+                    self.scene = .{
+                        .RadarScanning = .{
+                            .t = 0,
+                        },
+                    };
+                }
             },
             .RadarScanning => |*state| {
                 state.t += 1;
@@ -415,6 +429,18 @@ pub const Slideshow = struct {
 
                 if (clicked) {
                     self.scene = .{
+                        .BadOne_Intro = .{
+                            .t = 0,
+                        },
+                    };
+                }
+            },
+            .BadOne_Intro => |*x| {
+                x.t += 1;
+                sprites.draw_blob_text("simplest solution", .{ .x = 100, .y = 100 });
+
+                if (clicked) {
+                    self.scene = .{
                         .BadOne_Samples = .{
                             .t = 0,
                             .perlin = .{},
@@ -499,15 +525,15 @@ pub const Slideshow = struct {
 
                 if (clicked) {
                     self.scene = .{
-                        .BadOne_JoiningUpLines = .{
+                        .Perlin_Intro = .{
                             .t = 0,
                         },
                     };
                 }
             },
-            .BadImplementation => |*state| {
+            .Perlin_Intro => |*state| {
                 state.t += 1;
-                fonts.g_linssen.draw_text(0, "bad implementation", 120, 220, consts.pico_black);
+                sprites.draw_blob_text("perlin", .{ .x = 100, .y = 100 });
             },
             .SinglePerlin => |*x| {
                 x.t += 1;
