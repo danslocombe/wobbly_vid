@@ -246,7 +246,7 @@ pub const Slideshow = struct {
             .Intro => |*x| {
                 x.t += 1;
                 //fonts.g_linssen.draw_text(0, "making interesting things boring", 60, 150, consts.pico_black);
-                sprites.draw_blob_text("hello", .{ .x = 100, .y = 100 });
+                sprites.draw_blob_text("end goal", .{ .x = 100, .y = 100 });
                 //sprites.draw_blob_text("maths", .{ .x = 100, .y = 100 });
 
                 var styling = Styling{
@@ -265,6 +265,8 @@ pub const Slideshow = struct {
                     var planet = Planet{
                         .world = world.World.new(0, .{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 }, 64, 16),
                     };
+
+                    planet.draw_oscs = false;
 
                     self.scene = .{
                         .EndGoal = FinalSceneState.init(planet),
@@ -1479,10 +1481,10 @@ pub const Rock = struct {
         };
     }
 
-    pub fn tick(self: *Rock, planet: *Planet) bool {
+    pub fn tick(self: *Rock, planet: *Planet) struct { destroy: bool = false, create_new_rock_at_sample_pos: ?f32 = null } {
         if (self.lifetime) |l| {
             if (l == 0) {
-                return false;
+                return .{ .destroy = true };
             }
 
             self.r *= 0.95;
@@ -1500,7 +1502,7 @@ pub const Rock = struct {
             if (self.r > 2.0) {
                 planet.world.slam(10 * self.r, angle);
             }
-            return false;
+            return .{ .destroy = true, .create_new_rock_at_sample_pos = sample };
         }
 
         var accel = 300.0 / dist_2;
@@ -1508,7 +1510,7 @@ pub const Rock = struct {
         self.vel = utils.add_v2(self.vel, utils.scale_v2(accel, delta_norm));
         self.pos = utils.add_v2(self.pos, self.vel);
 
-        return true;
+        return .{};
     }
 
     pub fn draw(self: *Rock) void {
@@ -1551,11 +1553,168 @@ pub fn create_particles(particles: *std.ArrayList(Particle), t: i32, p_pos: rl.V
     }
 }
 
+const PlayerOnWorld = struct {
+    t: i32 = 0,
+    angle: f32 = TAU * 0.78,
+    angle_vel: f32 = 0,
+
+    realised_pos: rl.Vector2 = .{},
+    realised_angle: f32 = 0,
+
+    jumping: bool = false,
+    charging: bool = false,
+
+    facing_left: bool = true,
+
+    on_world: bool = true,
+
+    floating_pos: rl.Vector2 = .{},
+    floating_vel: rl.Vector2 = .{},
+    floating_angular_vel: f32 = 0,
+
+    fn tick(self: *PlayerOnWorld, scene: *FinalSceneState) void {
+        self.t += 1;
+
+        if (!self.on_world) {
+            var delta = utils.sub_v2(self.floating_pos, scene.planet.world.pos);
+            var delta_norm = utils.norm(delta);
+            var delta_mag = utils.mag_v2(delta);
+            var grav = utils.scale_v2(-0.1 / delta_mag * delta_mag, delta_norm);
+
+            self.floating_vel = utils.add_v2(self.floating_vel, grav);
+            self.floating_pos = utils.add_v2(self.floating_pos, self.floating_vel);
+
+            self.realised_pos = self.floating_pos;
+            self.realised_angle += self.floating_angular_vel;
+
+            var angle = std.math.atan2(f32, delta.y, delta.x);
+            var sample = scene.planet.world.sample(angle);
+            if (delta_mag < sample + 8) {
+                self.on_world = true;
+                self.angle = angle;
+                self.angle_vel = 0;
+
+                scene.planet.world.slam(30, angle);
+                g_screenshake = 2;
+                g_shader_noise_dump = 0.02;
+
+                {
+                    for (0..8) |i| {
+                        var rand = FroggyRand.init(self.t);
+                        rand = rand.subrand(i);
+                        var r = rand.gen_froggy("r", 0.4, 1.8, 2);
+                        var pos_on_surface = scene.planet.world.pos_on_surface(angle, 0.1 + r);
+
+                        var vel_angle = angle + rand.gen_f32_range("a", -1.0, 1.0) * 0.4;
+                        var spd = rand.gen_froggy("s", 0.3, 2.5, 2) * 1.25;
+                        var vel: rl.Vector2 = .{ .x = std.math.cos(vel_angle) * spd, .y = std.math.sin(vel_angle) * spd };
+
+                        scene.rocks.append(.{
+                            .pos = pos_on_surface,
+                            .vel = vel,
+                            .r = r,
+                            .sides = rand.gen_i32_range("sides", 3, 8),
+                            .lifetime = rand.gen_i32_range("life", 20, 60),
+                        }) catch unreachable;
+                    }
+                }
+            }
+            return;
+        }
+
+        self.angle_vel *= 0.9;
+
+        const vv = 0.003;
+        if (rl.IsKeyDown(rl.KeyboardKey.KEY_LEFT)) {
+            self.angle_vel -= vv;
+            self.facing_left = true;
+        }
+        if (rl.IsKeyDown(rl.KeyboardKey.KEY_RIGHT)) {
+            self.angle_vel += vv;
+            self.facing_left = false;
+        }
+
+        if (std.math.fabs(self.angle_vel) > 0.005) {
+            var rand = FroggyRand.init(self.t);
+            if (rand.gen_f32_uniform(0) < std.math.fabs(self.angle_vel) * 5) {
+                //for (0..1) |i| {
+                //rand = rand.subrand(i);
+                var r = rand.gen_froggy("r", 0.4, 1.8, 2);
+                var pos_on_surface = scene.planet.world.pos_on_surface(self.angle, 0.1 + r);
+
+                var vel_angle = self.angle + rand.gen_f32_range("a", -1.0, 1.0) * 0.1;
+                var spd = rand.gen_froggy("s", 0.3, 1.2, 2) * 1.25;
+                var vel: rl.Vector2 = .{ .x = std.math.cos(vel_angle) * spd, .y = std.math.sin(vel_angle) * spd };
+
+                scene.rocks.append(.{
+                    .pos = pos_on_surface,
+                    .vel = vel,
+                    .r = r,
+                    .sides = rand.gen_i32_range("sides", 3, 8),
+                    .lifetime = rand.gen_i32_range("life", 20, 60),
+                }) catch unreachable;
+            }
+        }
+
+        self.angle += self.angle_vel;
+        self.realised_pos = scene.planet.world.pos_on_surface(self.angle, 8.0);
+        self.realised_angle = self.angle;
+
+        if (rl.IsKeyDown(rl.KeyboardKey.KEY_UP)) {
+            self.charging = true;
+        } else {
+            if (self.charging) {
+                // Do a jump
+                self.on_world = false;
+
+                var normal = utils.sub_v2(self.realised_pos, scene.planet.world.pos);
+                var normal_norm = utils.norm(normal);
+
+                var tangent = .{ .x = -normal_norm.y, .y = normal_norm.x };
+                var from_angular_vel = utils.scale_v2(self.angle_vel * 50, tangent);
+
+                self.floating_vel = utils.add_v2(utils.scale_v2(2.5, normal_norm), from_angular_vel);
+                self.floating_pos = utils.add_v2(self.realised_pos, self.floating_vel);
+                self.floating_angular_vel = self.angle_vel * 3;
+            }
+            self.charging = false;
+        }
+    }
+
+    fn draw(self: *PlayerOnWorld) void {
+        var frame: usize = 0;
+
+        if (!self.on_world) {
+            frame = 5;
+        } else {
+            if (self.charging) {
+                frame = 2;
+            } else if (std.math.fabs(self.angle_vel) > 0.01) {
+                if (@mod(@divFloor(self.t, 6), 2) == 0) {
+                    frame = 0;
+                } else {
+                    frame = 1;
+                }
+            } else {
+                frame = 4;
+            }
+        }
+
+        var x_scale: f32 = 2;
+        if (!self.facing_left) {
+            x_scale = -2;
+        }
+
+        sprites.g_sprites.draw_frame_scaled_rotated("char", frame, self.realised_pos, x_scale, 2, .{ .x = 4, .y = 10 }, 360 * self.realised_angle / TAU + 90);
+    }
+};
+
 const FinalSceneState = struct {
     t: i32,
     planet: Planet,
     rocks: std.ArrayList(Rock),
     trees: std.ArrayList(Tree),
+    player: PlayerOnWorld,
 
     pub fn init(new_planet: Planet) FinalSceneState {
         var trees = std.ArrayList(Tree).init(alloc.gpa.allocator());
@@ -1575,6 +1734,7 @@ const FinalSceneState = struct {
             .planet = new_planet,
             .trees = trees,
             .rocks = rocks,
+            .player = .{},
         };
     }
 
@@ -1587,9 +1747,11 @@ const FinalSceneState = struct {
         var new_rocks = std.ArrayList(Rock).init(alloc.gpa.allocator());
 
         for (self.rocks.items) |*rock| {
-            if (rock.tick(&self.planet)) {
+            var res = rock.tick(&self.planet);
+            if (!res.destroy) {
                 new_rocks.append(rock.*) catch unreachable;
-            } else {
+            }
+            if (res.create_new_rock_at_sample_pos) |sample| {
                 if (rock.r > 2.0) {
                     g_screenshake = @max(g_screenshake, rock.r * 0.2);
                 }
@@ -1597,18 +1759,45 @@ const FinalSceneState = struct {
                 if (rock.r > 3) {
                     var delta = utils.sub_v2(rock.pos, self.planet.world.pos);
                     var angle = std.math.atan2(f32, delta.y, delta.x);
-                    for (0..8) |i| {
+                    for (0..5) |i| {
+                        var rand = FroggyRand.init(self.t);
+                        rand = rand.subrand(i);
+                        var r = rand.gen_froggy("r", 0.2, 1.8, 2);
+                        //var pos_on_surface = self.planet.world.pos_on_surface(angle, 0.1 + r);
+                        var sample_v = .{ .x = sample * std.math.cos(angle), .y = sample * std.math.sin(angle) };
+                        var pos_on_surface = utils.add_v2(self.planet.world.pos, sample_v);
+
+                        var vel_angle = angle + rand.gen_f32_range("a", -1.0, 1.0) * 0.4;
+                        var spd = rand.gen_froggy("s", 0.3, 2.5, 2) * 1.25;
+                        var vel: rl.Vector2 = .{ .x = std.math.cos(vel_angle) * spd, .y = std.math.sin(vel_angle) * spd };
+
+                        //var pos = utils.add_v2(pos_on_surface, vel);
+                        var pos = pos_on_surface;
+
+                        new_rocks.append(.{
+                            .pos = pos,
+                            .vel = vel,
+                            .r = r,
+                            .sides = rand.gen_i32_range("sides", 3, 8),
+                            .lifetime = rand.gen_i32_range("life", 20, 60),
+                        }) catch unreachable;
+                    }
+
+                    for (0..4) |i| {
                         var rand = FroggyRand.init(self.t);
                         rand = rand.subrand(i);
                         var r = rand.gen_froggy("r", 0.2, 1.8, 2);
                         var pos_on_surface = self.planet.world.pos_on_surface(angle, 0.1 + r);
 
-                        var vel_angle = angle + rand.gen_f32_range("a", -1.0, 1.0) * 0.1;
+                        var vel_angle = angle + rand.gen_f32_range("a", -1.0, 1.0) * 0.3;
                         var spd = rand.gen_froggy("s", 0.3, 2.5, 2) * 1.25;
                         var vel: rl.Vector2 = .{ .x = std.math.cos(vel_angle) * spd, .y = std.math.sin(vel_angle) * spd };
 
+                        //var pos = utils.add_v2(pos_on_surface, vel);
+                        var pos = pos_on_surface;
+
                         new_rocks.append(.{
-                            .pos = pos_on_surface,
+                            .pos = pos,
                             .vel = vel,
                             .r = r,
                             .sides = rand.gen_i32_range("sides", 3, 8),
@@ -1637,5 +1826,8 @@ const FinalSceneState = struct {
         for (self.rocks.items) |*rock| {
             rock.draw();
         }
+
+        self.player.tick(self);
+        self.player.draw();
     }
 };
