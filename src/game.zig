@@ -49,6 +49,7 @@ pub const Game = struct {
             .scene = Scene{
                 .Intro = .{ .t = 0 },
             },
+            .undo_stack = std.ArrayList(Scene).init(alloc.gpa.allocator()),
         };
 
         return Game{
@@ -180,10 +181,14 @@ pub const Scene = union(enum) {
     EndGoal: FinalSceneState,
     WhatDoWeWant: struct { t: i32 },
     RadarScanning: struct { t: i32 },
+    SimplestSolutionTitle: struct { t: i32 },
     JoiningUpLines: struct { t: i32 },
     BadOne_Intro: struct { t: i32 },
     BadOne_Samples: struct { t: i32, perlin: perlin.AnimatedPerlin },
-    BadOne_JoiningUpLines: struct { t: i32 },
+    BadOne_JoiningUpLines: struct {
+        t: i32,
+        r_vary_pos_lerped: rl.Vector2 = .{},
+    },
     Perlin_Intro: struct { t: i32 },
     SinglePerlin: struct { t: i32, perlin: perlin.AnimatedPerlin },
     PerlinOctaves: struct { t: i32, perlins: [3]perlin.AnimatedPerlin },
@@ -197,6 +202,7 @@ pub const Scene = union(enum) {
     OscLandscape: struct { t: i32, landscapes: []perlin.Landscape },
     Trick2: struct { t: i32 },
     WrapStatic: struct { t: i32, perlin: perlin.CircularMappingPerlin },
+    PlanetSmallLayout: struct { t: i32, planet: Planet },
     PlanetInterp: struct { t: i32, planet: Planet },
     PlanetPropPos: struct {
         t: i32,
@@ -212,7 +218,7 @@ pub const Scene = union(enum) {
         t: f32,
         paused: bool = false,
         just_slammed: bool = false,
-        planet: Planet,
+        //planet: Planet,
         player_state: PlayerState = .{},
         particles: std.ArrayList(Particle),
 
@@ -224,6 +230,7 @@ pub const Scene = union(enum) {
 
 pub const Slideshow = struct {
     scene: Scene,
+    undo_stack: std.ArrayList(Scene),
 
     pub fn tick(self: *Slideshow) void {
         _ = self;
@@ -231,10 +238,24 @@ pub const Slideshow = struct {
         // (Its a lot easier when everything is next to each other.)
     }
 
+    pub fn change_scene(self: *Slideshow, new_scene: Scene) void {
+        self.undo_stack.append(self.scene) catch unreachable;
+        self.scene = new_scene;
+    }
+
     pub fn draw(self: *Slideshow) void {
+        if (rl.IsKeyPressed(rl.KeyboardKey.KEY_P)) {
+            if (self.undo_stack.popOrNull()) |popped| {
+                self.scene = popped;
+                //self.change_scene(popped);
+            }
+
+            return;
+        }
+
         if (rl.IsKeyPressed(rl.KeyboardKey.KEY_R)) {
             // Reset
-            self.scene = .{ .Intro = .{ .t = 0 } };
+            self.change_scene(.{ .Intro = .{ .t = 0 } });
             return;
         }
 
@@ -268,9 +289,9 @@ pub const Slideshow = struct {
 
                     planet.draw_oscs = false;
 
-                    self.scene = .{
+                    self.change_scene(.{
                         .EndGoal = FinalSceneState.init(planet),
-                    };
+                    });
                     //self.scene = .{ .SinglePerlin = .{
                     //    .t = 0,
                     //    .perlin = .{},
@@ -280,25 +301,25 @@ pub const Slideshow = struct {
             .EndGoal => |*state| {
                 state.draw(clicked);
                 if (alt_key_pressed) {
-                    self.scene = .{
+                    self.change_scene(.{
                         .WhatDoWeWant = .{
                             .t = 0,
                         },
-                    };
+                    });
                 }
 
                 fonts.g_linssen.draw_text(0, "end goal", 120, 220, consts.pico_black);
             },
             .WhatDoWeWant => |*x| {
                 x.t += 1;
-                sprites.draw_blob_text("what do we need", .{ .x = 100, .y = 100 });
+                sprites.draw_blob_text_small("what do we need", .{ .x = 100, .y = 100 });
 
                 if (clicked) {
-                    self.scene = .{
+                    self.change_scene(.{
                         .RadarScanning = .{
                             .t = 0,
                         },
-                    };
+                    });
                 }
             },
             .RadarScanning => |*state| {
@@ -367,17 +388,28 @@ pub const Slideshow = struct {
                 fonts.g_linssen.draw_text(0, "what do we want", 120, 220, consts.pico_black);
 
                 if (clicked) {
-                    self.scene = .{
+                    self.change_scene(.{
+                        .SimplestSolutionTitle = .{
+                            .t = 0,
+                        },
+                    });
+                }
+            },
+            .SimplestSolutionTitle => |*state| {
+                state.t += 1;
+                sprites.draw_blob_text_small("simplest solution", .{ .x = 100, .y = 100 });
+                if (clicked) {
+                    self.change_scene(.{
                         .JoiningUpLines = .{
                             .t = 0,
                         },
-                    };
+                    });
                 }
             },
             .JoiningUpLines => |*state| {
                 state.t += 1;
 
-                var angle = @as(f32, @floatFromInt(state.t)) * 0.01;
+                var angle = @as(f32, @floatFromInt(state.t)) * 0.025;
                 angle = @min(TAU, angle);
 
                 var c = .{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 };
@@ -427,27 +459,30 @@ pub const Slideshow = struct {
                     prev = pp;
                 }
 
-                fonts.g_linssen.draw_text(0, "what do we want", 120, 220, consts.pico_black);
+                var midpoint = utils.scale_v2(0.5, utils.add_v2(prev, c));
+                fonts.g_linssen.draw_text(0, "r", midpoint.x, midpoint.y - 10, consts.pico_black);
+
+                fonts.g_linssen.draw_text(0, "sample(a) = r", 120, 220, consts.pico_black);
 
                 if (clicked) {
-                    self.scene = .{
+                    self.change_scene(.{
                         .BadOne_Intro = .{
                             .t = 0,
                         },
-                    };
+                    });
                 }
             },
             .BadOne_Intro => |*x| {
                 x.t += 1;
-                sprites.draw_blob_text("simplest solution", .{ .x = 100, .y = 100 });
+                sprites.draw_blob_text_small("variations in surface", .{ .x = 100, .y = 100 });
 
                 if (clicked) {
-                    self.scene = .{
+                    self.change_scene(.{
                         .BadOne_Samples = .{
                             .t = 0,
                             .perlin = .{},
                         },
-                    };
+                    });
                 }
             },
             .BadOne_Samples => |*x| {
@@ -458,11 +493,11 @@ pub const Slideshow = struct {
                 fonts.g_linssen.draw_text(0, "sample random points in [-1,1]", 80, 220, consts.pico_black);
 
                 if (clicked) {
-                    self.scene = .{
+                    self.change_scene(.{
                         .BadOne_JoiningUpLines = .{
                             .t = 0,
                         },
-                    };
+                    });
                 }
             },
 
@@ -485,15 +520,13 @@ pub const Slideshow = struct {
                 fonts.g_linssen.draw_text(0, "a", text_pos.x, text_pos.y, consts.pico_black);
 
                 const r_base = 64;
-                const r_vary = 8;
-                var p = utils.add_v2(c, utils.scaled_from_angle(draw_angle, r_base));
-
-                utils.draw_broken_line(c, p, 1.0, 1.0, consts.pico_blue);
+                const r_vary = 16;
 
                 var rand = FroggyRand.init(0);
 
                 var prev: rl.Vector2 = .{};
-                const k = 64;
+                var prev_c: rl.Vector2 = .{};
+                const k = 32;
                 var one_last_draw = false;
                 for (0..(k + 1)) |p_i| {
                     var i = @mod(p_i, k);
@@ -514,28 +547,60 @@ pub const Slideshow = struct {
                     const sample = rand.gen_f32_one_minus_one(i);
                     var pp = utils.add_v2(c, utils.scaled_from_angle(draw_a, r_base + r_vary * sample));
 
+                    var p_c = utils.add_v2(c, utils.scaled_from_angle(draw_a, r_base));
+
                     if (p_i != 0) {
                         rl.DrawLineV(prev, pp, consts.pico_blue);
+                        utils.draw_broken_line(p_c, prev_c, 1.0, 1.0, consts.pico_blue);
                     }
 
                     utils.draw_circle_lines(pp, 1.0, consts.pico_sea);
 
                     prev = pp;
+                    prev_c = p_c;
                 }
 
-                fonts.g_linssen.draw_text(0, "joining up lines bad", 120, 220, consts.pico_black);
+                var p_base = utils.add_v2(c, utils.scaled_from_angle(-angle, r_base));
+                //var midpoint_base = utils.scale_v2(0.5, utils.add_v2(p_base, c));
+                var midpoint_base = utils.straight_lerp_v2(c, p_base, 0.4);
+
+                var midpoint_vary = utils.scale_v2(0.5, utils.add_v2(p_base, prev));
+                if (state.r_vary_pos_lerped.x == 0 and state.r_vary_pos_lerped.y == 0) {
+                    state.r_vary_pos_lerped = midpoint_vary;
+                }
+                state.r_vary_pos_lerped = utils.dan_lerp_v2(state.r_vary_pos_lerped, midpoint_vary, 20);
+
+                //var p = utils.add_v2(c, utils.scaled_from_angle(draw_angle, r_base));
+                //utils.draw_broken_line(c, p, 1.0, 1.0, consts.pico_blue);
+                utils.draw_broken_line(c, p_base, 1.0, 1.0, consts.pico_green);
+                utils.draw_broken_line(p_base, prev, 1.0, 1.0, consts.pico_red);
+
+                fonts.g_linssen.draw_text(0, "r_base", midpoint_base.x, midpoint_base.y - 10, consts.pico_green);
+                fonts.g_linssen.draw_text(0, "r_vary", state.r_vary_pos_lerped.x, state.r_vary_pos_lerped.y - 10, consts.pico_red);
+
+                fonts.g_linssen.draw_text(0, "sample(a) = r_base + r_vary", 120, 220, consts.pico_black);
 
                 if (clicked) {
-                    self.scene = .{
+                    self.change_scene(.{
                         .Perlin_Intro = .{
                             .t = 0,
                         },
-                    };
+                    });
                 }
             },
             .Perlin_Intro => |*state| {
                 state.t += 1;
                 sprites.draw_blob_text("perlin", .{ .x = 100, .y = 100 });
+
+                if (clicked) {
+                    self.change_scene(.{
+                        .PerlinOctaves = .{
+                            .perlins = perlin.make_three_perlins(),
+                            .t = 0,
+                            //.perlin = .{},
+                        },
+                    });
+                }
             },
             .SinglePerlin => |*x| {
                 x.t += 1;
@@ -546,12 +611,12 @@ pub const Slideshow = struct {
                 fonts.g_linssen.draw_text(0, "sample random points in [-1,1]", 80, 220, consts.pico_black);
 
                 if (clicked) {
-                    self.scene = .{
+                    self.change_scene(.{
                         .PerlinOctaves = .{
                             .t = 0,
                             .perlins = perlin.make_three_perlins(),
                         },
-                    };
+                    });
                 }
             },
             .PerlinOctaves => |*x| {
@@ -571,12 +636,12 @@ pub const Slideshow = struct {
                         p.t = 600;
                     }
 
-                    self.scene = .{
+                    self.change_scene(.{
                         .MergedPerlin = .{
                             .t = 0,
                             .perlins = x.perlins,
                         },
-                    };
+                    });
                 }
             },
             .MergedPerlin => |*x| {
@@ -626,7 +691,7 @@ pub const Slideshow = struct {
                 fonts.g_linssen.draw_text(0, "sum the layers together", 100, 215, consts.pico_black);
 
                 if (clicked) {
-                    self.scene = .{ .Trick1 = .{ .t = 0 } };
+                    self.change_scene(.{ .Trick1 = .{ .t = 0 } });
                 }
             },
             .Trick1 => |*x| {
@@ -639,10 +704,110 @@ pub const Slideshow = struct {
                 var font_state = fonts.DrawTextState{};
                 fonts.g_linssen.draw_text_state(x.t, "(making things move)", 80, 130, styling, &font_state);
 
+                //if (clicked) {
+                //    self.scene = .{ .IntroOsc = .{ .t = 0 } };
+                //    g_shader_noise_dump = 0.5;
+                //    g_screenshake = 1.0;
+                //}
+
                 if (clicked) {
-                    self.scene = .{ .IntroOsc = .{ .t = 0 } };
+                    g_screenshake = 0.5;
                     g_shader_noise_dump = 0.5;
-                    g_screenshake = 1.0;
+                    self.change_scene(.{
+                        .OscSlam = .{
+                            .t = 0,
+                            //.planet = x.planet,
+                            .particles = std.ArrayList(Particle).init(alloc.gpa.allocator()),
+                        },
+                    });
+                }
+            },
+            .OscSlam => |*state| {
+                var x = state;
+                if (!x.paused) {
+                    x.ongoing_slam_offset_t += 1;
+                    x.t = utils.dan_lerp(x.t, x.ongoing_slam_offset_t, 8.0);
+                    x.player_state.t += 1;
+
+                    var new_particles = std.ArrayList(Particle).init(alloc.gpa.allocator());
+                    for (x.particles.items) |*particle| {
+                        if (particle.tick(1)) {
+                            new_particles.append(particle.*) catch unreachable;
+                        }
+                    }
+
+                    x.particles.deinit();
+                    x.particles = new_particles;
+                } else {
+                    if (space_down) {
+                        x.paused = false;
+                        x.just_slammed = false;
+                        x.player_state.space_up_since_unpause = false;
+                    }
+                }
+
+                if (!x.player_state.jumping) {
+                    if (space_down and x.player_state.space_up_since_unpause) {
+                        x.player_state.charging = true;
+                    } else if (x.player_state.charging) {
+                        x.player_state.jumping = true;
+                        x.player_state.yvel = -7;
+                        x.player_state.charging = false;
+                    }
+
+                    if (!space_down) {
+                        x.player_state.space_up_since_unpause = true;
+                    }
+                } else {
+                    x.player_state.yvel += 0.35;
+                    if (x.player_state.yvel > 0.0) {
+                        x.player_state.yvel += 0.1;
+                    }
+                    x.player_state.y_off += x.player_state.yvel;
+
+                    if (x.player_state.y_off > 0) {
+                        x.player_state.jumping = false;
+                        x.player_state.yvel = 0;
+                        x.player_state.y_off = 0;
+                        g_screenshake = 0.25;
+                        x.paused = true;
+                        x.just_slammed = true;
+
+                        x.ongoing_slam_offset_t = world.get_slam_target(x.t);
+
+                        create_particles(&x.particles, @intFromFloat(x.t), utils.add_v2(x.player_state.last_pos, .{ .x = 4 * 2, .y = 10 * 2 + 4 }), 4, 2.0);
+                    }
+                }
+
+                for (state.particles.items) |*part| {
+                    part.draw();
+                }
+                var tt = state.t * 0.02;
+                const r = 32;
+                const col = consts.pico_sea;
+                draw_generator_slam(&state.player_state, state.just_slammed, tt, r, r, col, 32);
+
+                //fonts.g_linssen.draw_text(0, "sine wave generated as time increases", 80, 215, consts.pico_black);
+                fonts.g_linssen.draw_text(0, "slamming and altering terrain ", 80, 215, consts.pico_black);
+
+                //if (clicked) {
+                //    g_screenshake = 0.5;
+                //    g_shader_noise_dump = 0.5;
+                //    var new_planet = state.planet;
+                //    //new_planet.world.pos.y -= 40;
+                //    //new_planet.draw_oscs = false;
+                //    new_planet.draw_oscs_arrows = true;
+                //    self.scene = .{
+                //        .PlanetProps = FinalSceneState.init(new_planet),
+                //    };
+                //}
+
+                if (clicked) {
+                    self.change_scene(.{
+                        .IntroOsc = .{
+                            .t = 0,
+                        },
+                    });
                 }
             },
             .IntroOsc => |*state| {
@@ -659,7 +824,7 @@ pub const Slideshow = struct {
 
                 if (clicked) {
                     // Carry over t so that the animations line up
-                    self.scene = .{ .OscStackedCentral = .{ .t = state.t } };
+                    self.change_scene(.{ .OscStackedCentral = .{ .t = state.t } });
                 }
             },
             .OscStackedCentral => |*state| {
@@ -720,7 +885,7 @@ pub const Slideshow = struct {
                 fonts.g_linssen.draw_text(0, "each with same period but decreasing amplitudes", 30, 220, consts.pico_black);
 
                 if (clicked) {
-                    self.scene = .{ .OscStackedTipTail = .{ .t = state.t } };
+                    self.change_scene(.{ .OscStackedTipTail = .{ .t = state.t } });
                 }
             },
             .OscStackedTipTail => |*state| {
@@ -793,7 +958,7 @@ pub const Slideshow = struct {
                 fonts.g_linssen.draw_text_state(state.t, "y = r0*sin(t + t0) + r1*sin(t + t1) + r2*sin(t + t2)", 30, 210, styling, &font_state);
 
                 if (clicked) {
-                    self.scene = .{ .OscStackedMovable = .{ .t = state.t } };
+                    self.change_scene(.{ .OscStackedMovable = .{ .t = state.t } });
                 }
             },
             .OscStackedMovable => |*state| {
@@ -863,10 +1028,10 @@ pub const Slideshow = struct {
                 fonts.g_linssen.draw_text(0, "varying the inner oscillator", 70, 210, consts.pico_black);
 
                 if (clicked) {
-                    self.scene = .{ .OscLandscapeSingle = .{
+                    self.change_scene(.{ .OscLandscapeSingle = .{
                         .t = 0,
                         .landscape = .{},
-                    } };
+                    } });
 
                     g_shader_noise_dump = 0.5;
                     g_screenshake = 1.0;
@@ -924,10 +1089,10 @@ pub const Slideshow = struct {
                         .r = r * 0.25,
                     };
 
-                    self.scene = .{ .OscLandscape = .{
+                    self.change_scene(.{ .OscLandscape = .{
                         .t = 0,
                         .landscapes = landscapes,
-                    } };
+                    } });
                 }
             },
             .OscLandscape => |*state| {
@@ -973,7 +1138,7 @@ pub const Slideshow = struct {
                 }
 
                 if (clicked) {
-                    self.scene = .{ .Trick2 = .{ .t = 0 } };
+                    self.change_scene(.{ .Trick2 = .{ .t = 0 } });
                 }
             },
             .Trick2 => |*x| {
@@ -1035,14 +1200,14 @@ pub const Slideshow = struct {
                         .r = r * 0.25,
                     };
 
-                    self.scene = .{
+                    self.change_scene(.{
                         .WrapStatic = .{
                             .t = 0,
                             .perlin = .{
                                 .landscapes = landscapes,
                             },
                         },
-                    };
+                    });
                 }
             },
             .WrapStatic => |*x| {
@@ -1070,14 +1235,36 @@ pub const Slideshow = struct {
                 if (clicked) {
                     g_screenshake = 0.5;
                     g_shader_noise_dump = 0.5;
-                    self.scene = .{
+                    self.change_scene(.{
+                        .PlanetSmallLayout = .{
+                            .t = 0,
+                            .planet = Planet{
+                                .world = world.World.new_bad_layout(0, .{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 }, 64, 16),
+                            },
+                        },
+                    });
+                }
+            },
+            .PlanetSmallLayout => |*x| {
+                x.t += 1;
+                x.planet.world.tick();
+
+                x.planet.draw();
+                rl.DrawCircleLines(@intFromFloat(x.planet.world.pos.x), @intFromFloat(x.planet.world.pos.y), 1.0, consts.pico_blue);
+
+                fonts.g_linssen.draw_text(0, "small layout", 70, 210, consts.pico_black);
+
+                if (clicked) {
+                    g_screenshake = 0.5;
+                    g_shader_noise_dump = 0.5;
+                    self.change_scene(.{
                         .PlanetInterp = .{
                             .t = 0,
                             .planet = Planet{
                                 .world = world.World.new(0, .{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 }, 64, 16),
                             },
                         },
-                    };
+                    });
                 }
             },
             .PlanetInterp => |*x| {
@@ -1101,13 +1288,13 @@ pub const Slideshow = struct {
                     var tree = .{
                         .angle = 0.75 * TAU,
                     };
-                    self.scene = .{
+                    self.change_scene(.{
                         .PlanetPropPos = .{
                             .t = 0,
                             .planet = new_planet,
                             .tree = tree,
                         },
-                    };
+                    });
                 }
             },
             .PlanetPropPos => |*x| {
@@ -1131,13 +1318,13 @@ pub const Slideshow = struct {
                 fonts.g_linssen.draw_text(0, "sticking object to the surface", 50, 210, consts.pico_black);
 
                 if (clicked) {
-                    self.scene = .{
+                    self.change_scene(.{
                         .PlanetPropTangent = .{
                             .t = 0,
                             .planet = x.planet,
                             .tree = x.tree,
                         },
-                    };
+                    });
                 }
             },
             .PlanetPropTangent => |*x| {
@@ -1170,93 +1357,16 @@ pub const Slideshow = struct {
                 if (clicked) {
                     g_screenshake = 0.5;
                     g_shader_noise_dump = 0.5;
-                    self.scene = .{
-                        .OscSlam = .{
-                            .t = 0,
-                            .planet = x.planet,
-                            .particles = std.ArrayList(Particle).init(alloc.gpa.allocator()),
-                        },
-                    };
-                }
-            },
-            .OscSlam => |*state| {
-                var x = state;
-                if (!x.paused) {
-                    x.ongoing_slam_offset_t += 1;
-                    x.t = utils.dan_lerp(x.t, x.ongoing_slam_offset_t, 8.0);
-                    x.player_state.t += 1;
-
-                    var new_particles = std.ArrayList(Particle).init(alloc.gpa.allocator());
-                    for (x.particles.items) |*particle| {
-                        if (particle.tick(1)) {
-                            new_particles.append(particle.*) catch unreachable;
-                        }
-                    }
-
-                    x.particles.deinit();
-                    x.particles = new_particles;
-                } else {
-                    if (space_down) {
-                        x.paused = false;
-                        x.just_slammed = false;
-                        x.player_state.space_up_since_unpause = false;
-                    }
-                }
-
-                if (!x.player_state.jumping) {
-                    if (space_down and x.player_state.space_up_since_unpause) {
-                        x.player_state.charging = true;
-                    } else if (x.player_state.charging) {
-                        x.player_state.jumping = true;
-                        x.player_state.yvel = -7;
-                        x.player_state.charging = false;
-                    }
-
-                    if (!space_down) {
-                        x.player_state.space_up_since_unpause = true;
-                    }
-                } else {
-                    x.player_state.yvel += 0.35;
-                    if (x.player_state.yvel > 0.0) {
-                        x.player_state.yvel += 0.1;
-                    }
-                    x.player_state.y_off += x.player_state.yvel;
-
-                    if (x.player_state.y_off > 0) {
-                        x.player_state.jumping = false;
-                        x.player_state.yvel = 0;
-                        x.player_state.y_off = 0;
-                        g_screenshake = 0.25;
-                        x.paused = true;
-                        x.just_slammed = true;
-
-                        x.ongoing_slam_offset_t = world.get_slam_target(x.t);
-
-                        create_particles(&x.particles, @intFromFloat(x.t), utils.add_v2(x.player_state.last_pos, .{ .x = 4 * 2, .y = 10 * 2 + 4 }), 4, 2.0);
-                    }
-                }
-
-                for (state.particles.items) |*part| {
-                    part.draw();
-                }
-                var tt = state.t * 0.02;
-                const r = 32;
-                const col = consts.pico_sea;
-                draw_generator_slam(&state.player_state, state.just_slammed, tt, r, r, col, 32);
-
-                //fonts.g_linssen.draw_text(0, "sine wave generated as time increases", 80, 215, consts.pico_black);
-                fonts.g_linssen.draw_text(0, "slamming and altering terrain ", 80, 215, consts.pico_black);
-
-                if (clicked) {
-                    g_screenshake = 0.5;
-                    g_shader_noise_dump = 0.5;
-                    var new_planet = state.planet;
-                    //new_planet.world.pos.y -= 40;
-                    //new_planet.draw_oscs = false;
-                    new_planet.draw_oscs_arrows = true;
-                    self.scene = .{
-                        .PlanetProps = FinalSceneState.init(new_planet),
-                    };
+                    self.change_scene(.{
+                        .PlanetProps = FinalSceneState.init(x.planet),
+                    });
+                    //self.scene = .{
+                    //    .OscSlam = .{
+                    //        .t = 0,
+                    //        //.planet = x.planet,
+                    //        .particles = std.ArrayList(Particle).init(alloc.gpa.allocator()),
+                    //    },
+                    //};
                 }
             },
             .PlanetProps => |*x| {

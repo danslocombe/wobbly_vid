@@ -138,6 +138,44 @@ pub const World = struct {
 
     const Self = @This();
 
+    pub fn new_bad_layout(seed: usize, pos: rl.Vector2, base_radius: f32, radius_vary: f32) Self {
+        //let mut oscs = Vec::with_capacity(osc_count);
+
+        const osc_count = 8;
+        var oscs = alloc.gpa.allocator().alloc(Oscillator, osc_count) catch unreachable;
+
+        const levels = 2;
+
+        for (0..osc_count) |i| {
+            // In the compo game we don't really vary the frequency of the osciallators and setup the amplitudes
+            // to a regular pattern.
+            var amp_num: f32 = @floatFromInt(@mod(i + seed, levels) + 1);
+            var amp = amp_num / (4 * levels);
+            //std.debug.print("amp: {d}\n", .{amp});
+            //0.25
+            //0.1875
+            // 0.125
+            // 0.0625
+            var t0: f32 = @floatFromInt(seed * 1235 + i * 100);
+
+            oscs[i] = Oscillator{
+                .pos = @as(f32, @floatFromInt(i)) / osc_count,
+                .rate = BASE_RATE,
+                .amp = amp,
+                .t = t0,
+                .amp0 = amp,
+            };
+        }
+
+        return Self{
+            .seed = @intCast(seed),
+            .pos = pos,
+            .oscs = oscs,
+            .base_radius = base_radius,
+            .radius_vary = radius_vary,
+        };
+    }
+
     pub fn new(seed: usize, pos: rl.Vector2, base_radius: f32, radius_vary: f32) Self {
         //let mut oscs = Vec::with_capacity(osc_count);
 

@@ -14,6 +14,8 @@ pub const SpriteManager = struct {
 
         frame_sprites.put("fnt_blob", load_frames(.{ .filename = "sprites/spr_font_blob_black.png", .frame_count = 26 })) catch unreachable;
         frame_sprites.put("fnt_blob_2", load_frames(.{ .filename = "sprites/spr_font_blob_black_2.png", .frame_count = 26 })) catch unreachable;
+        frame_sprites.put("fnt_blob_small", load_frames(.{ .filename = "sprites/spr_font_small_black.png", .frame_count = 26 })) catch unreachable;
+        frame_sprites.put("fnt_blob_small_2", load_frames(.{ .filename = "sprites/spr_font_small_black_2.png", .frame_count = 26 })) catch unreachable;
         frame_sprites.put("tree_small", load_frames(.{ .filename = "sprites/spr_tree_small.png", .frame_count = 2 })) catch unreachable;
         frame_sprites.put("char", load_frames(.{ .filename = "sprites/character_2.png", .frame_count = 6 })) catch unreachable;
         frame_sprites.put("cursor", load_frames(.{ .filename = "sprites/cursor.png", .frame_count = 1 })) catch unreachable;
@@ -143,7 +145,15 @@ fn load_frames(params: LoadFramesParams) []rl.Texture {
 
 pub var g_t: i32 = 0;
 
-pub fn draw_blob_text(text: []const u8, p_pos: rl.Vector2) void {
+pub fn draw_blob_text(text: []const u8, pos: rl.Vector2) void {
+    draw_text_ext(text, pos, "fnt_blob", "fnt_blob_2", 16);
+}
+
+pub fn draw_blob_text_small(text: []const u8, pos: rl.Vector2) void {
+    draw_text_ext(text, pos, "fnt_blob_small", "fnt_blob_small_2", 10);
+}
+
+pub fn draw_text_ext(text: []const u8, p_pos: rl.Vector2, font_0: []const u8, font_1: []const u8, incr_x: f32) void {
     var pos = p_pos;
     for (text) |c| {
         var index: ?usize = null;
@@ -156,11 +166,11 @@ pub fn draw_blob_text(text: []const u8, p_pos: rl.Vector2) void {
 
         if (index) |i| {
             if (@mod(@divFloor(g_t, 8), 2) == 0) {
-                g_sprites.draw_frame("fnt_blob", i, pos);
+                g_sprites.draw_frame(font_0, i, pos);
             } else {
-                g_sprites.draw_frame("fnt_blob_2", i, pos);
+                g_sprites.draw_frame(font_1, i, pos);
             }
         }
-        pos.x += 16;
+        pos.x += incr_x;
     }
 }

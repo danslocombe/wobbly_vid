@@ -65,8 +65,22 @@ pub fn dan_lerp(x0: f32, x1: f32, k: f32) f32 {
     return (x1 + x0 * (k - 1)) / k;
 }
 
+pub fn dan_lerp_v2(p0: rl.Vector2, p1: rl.Vector2, k: f32) rl.Vector2 {
+    return .{
+        .x = dan_lerp(p0.x, p1.x, k),
+        .y = dan_lerp(p0.y, p1.y, k),
+    };
+}
+
 pub fn straight_lerp(x0: f32, x1: f32, t: f32) f32 {
     return x1 * t + x0 * (1.0 - t);
+}
+
+pub fn straight_lerp_v2(p0: rl.Vector2, p1: rl.Vector2, t: f32) rl.Vector2 {
+    return .{
+        .x = straight_lerp(p0.x, p1.x, t),
+        .y = straight_lerp(p0.y, p1.y, t),
+    };
 }
 
 pub const FrameBufferToScreenInfo = struct {
