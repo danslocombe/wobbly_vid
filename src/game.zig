@@ -77,6 +77,25 @@ pub const Game = struct {
 
             target_camera_x = dx * 0.04;
             target_camera_y = dy * 0.04;
+
+            var m_player: ?*PlayerOnWorld = null;
+            if (self.slideshow.scene == .EndGoal) {
+                m_player = &self.slideshow.scene.EndGoal.player;
+            }
+
+            if (self.slideshow.scene == .PlanetProps) {
+                m_player = &self.slideshow.scene.PlanetProps.player;
+            }
+
+            if (m_player) |player| {
+                //if (!player.on_world) {
+                {
+                    const kk = 0.25;
+                    target_camera_x += kk * (player.realised_pos.x - consts.screen_width_f * 0.5);
+                    target_camera_y += kk * (player.realised_pos.y - consts.screen_height_f * 0.5);
+                }
+            }
+
             const k = 10;
             self.camera_x_base = utils.dan_lerp(self.camera_x_base, target_camera_x, k);
             self.camera_y_base = utils.dan_lerp(self.camera_y_base, target_camera_y, k);
@@ -1315,7 +1334,7 @@ pub const Slideshow = struct {
 
                 fonts.g_linssen.draw_text(0, "a", c.x + 4, c.y - 16, consts.pico_blue);
 
-                fonts.g_linssen.draw_text(0, "sticking object to the surface", 50, 210, consts.pico_black);
+                //fonts.g_linssen.draw_text(0, "sticking object to the surface", 50, 210, consts.pico_black);
 
                 if (clicked) {
                     self.change_scene(.{
