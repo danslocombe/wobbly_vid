@@ -199,12 +199,12 @@ pub const Scene = union(enum) {
     Intro: struct { t: i32 },
     EndGoal: FinalSceneState,
     WhatDoWeWant: struct { t: i32 },
+    //SimplestSolutionTitle: struct { t: i32 },
     RadarScanning: struct { t: i32 },
-    SimplestSolutionTitle: struct { t: i32 },
     JoiningUpLines: struct { t: i32 },
-    BadOne_Intro: struct { t: i32 },
-    BadOne_Samples: struct { t: i32, perlin: perlin.AnimatedPerlin },
-    BadOne_JoiningUpLines: struct {
+    Simple_ApproachIntro: struct { t: i32 },
+    Simple_Samples: struct { t: i32, perlin: perlin.AnimatedPerlin },
+    Simple_JoiningUpLines: struct {
         t: i32,
         r_vary_pos_lerped: rl.Vector2 = .{},
     },
@@ -212,15 +212,18 @@ pub const Scene = union(enum) {
     SinglePerlin: struct { t: i32, perlin: perlin.AnimatedPerlin },
     PerlinOctaves: struct { t: i32, perlins: [3]perlin.AnimatedPerlin },
     MergedPerlin: struct { t: i32, perlins: [3]perlin.AnimatedPerlin },
-    Trick1: struct { t: i32 },
+
+    TrickMakingThingsRound: struct { t: i32 },
+    WrapStatic: struct { t: i32, perlin: perlin.CircularMappingPerlin },
+
+    TrickMakingThingsMove: struct { t: i32 },
     IntroOsc: struct { t: i32 },
     OscStackedCentral: struct { t: i32 },
     OscStackedTipTail: struct { t: i32 },
     OscStackedMovable: struct { t: i32, small_offset: f32 = 0 },
     OscLandscapeSingle: struct { t: i32, playing: bool = false, landscape: perlin.Landscape },
     OscLandscape: struct { t: i32, landscapes: []perlin.Landscape },
-    Trick2: struct { t: i32 },
-    WrapStatic: struct { t: i32, perlin: perlin.CircularMappingPerlin },
+    WrapDynamic: struct { t: i32, perlin: perlin.CircularMappingPerlin },
     PlanetSmallLayout: struct { t: i32, planet: Planet },
     PlanetInterp: struct { t: i32, planet: Planet },
     PlanetPropPos: struct {
@@ -335,6 +338,83 @@ pub const Slideshow = struct {
 
                 if (clicked) {
                     self.change_scene(.{
+                        .JoiningUpLines = .{
+                            .t = 0,
+                        },
+                    });
+                }
+            },
+            //.SimplestSolutionTitle => |*state| {
+            //    state.t += 1;
+            //    sprites.draw_blob_text_small("simplest solution", .{ .x = 100, .y = 100 });
+            //    if (clicked) {
+            //        self.change_scene(.{
+            //            .JoiningUpLines = .{
+            //                .t = 0,
+            //            },
+            //        });
+            //    }
+            //},
+            .JoiningUpLines => |*state| {
+                state.t += 1;
+
+                var angle = @as(f32, @floatFromInt(state.t)) * 0.025;
+                angle = @min(TAU, angle);
+
+                var c = .{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 };
+
+                var draw_angle = TAU - angle;
+
+                rl.DrawLineV(c, utils.add_v2(c, .{ .x = 10 }), consts.pico_sea);
+
+                rl.DrawCircleSectorLines(c, 5.0, 90, 360 + 90 - (draw_angle * 360 / TAU), 8, consts.pico_sea);
+                var angle_delta_anticlockwise = utils.min_distance_between_angles_clockwise(draw_angle, 0);
+                var text_angle = -0.5 * utils.normalize_angle(angle_delta_anticlockwise);
+                var text_pos = utils.sub_v2(utils.add_v2(c, utils.scaled_from_angle(text_angle, 13)), .{ .x = 3, .y = 5 });
+                fonts.g_linssen.draw_text(0, "a", text_pos.x, text_pos.y, consts.pico_black);
+
+                const r_base = 64;
+                const r_vary = 8;
+                var p = utils.add_v2(c, utils.scaled_from_angle(draw_angle, r_base));
+
+                utils.draw_broken_line(c, p, 1.0, 1.0, consts.pico_blue);
+
+                var prev: rl.Vector2 = .{};
+                const k = 64;
+                var one_last_draw = false;
+                for (0..k) |i| {
+                    if (one_last_draw) {
+                        break;
+                    }
+
+                    var i_n = @as(f32, @floatFromInt(i)) / k;
+                    var a = TAU * i_n;
+                    if (a > angle) {
+                        a = angle;
+                        one_last_draw = true;
+                    }
+
+                    var draw_a = TAU - a;
+
+                    const sample = 0;
+                    var pp = utils.add_v2(c, utils.scaled_from_angle(draw_a, r_base + r_vary * sample));
+
+                    if (i != 0) {
+                        rl.DrawLineV(prev, pp, consts.pico_blue);
+                    }
+
+                    utils.draw_circle_lines(pp, 1.0, consts.pico_sea);
+
+                    prev = pp;
+                }
+
+                var midpoint = utils.scale_v2(0.5, utils.add_v2(prev, c));
+                fonts.g_linssen.draw_text(0, "r", midpoint.x, midpoint.y - 10, consts.pico_black);
+
+                fonts.g_linssen.draw_text(0, "sample(a) = r", 120, 220, consts.pico_black);
+
+                if (clicked) {
+                    self.change_scene(.{
                         .RadarScanning = .{
                             .t = 0,
                         },
@@ -408,103 +488,26 @@ pub const Slideshow = struct {
 
                 if (clicked) {
                     self.change_scene(.{
-                        .SimplestSolutionTitle = .{
+                        .Simple_ApproachIntro = .{
                             .t = 0,
                         },
                     });
                 }
             },
-            .SimplestSolutionTitle => |*state| {
-                state.t += 1;
-                sprites.draw_blob_text_small("simplest solution", .{ .x = 100, .y = 100 });
-                if (clicked) {
-                    self.change_scene(.{
-                        .JoiningUpLines = .{
-                            .t = 0,
-                        },
-                    });
-                }
-            },
-            .JoiningUpLines => |*state| {
-                state.t += 1;
-
-                var angle = @as(f32, @floatFromInt(state.t)) * 0.025;
-                angle = @min(TAU, angle);
-
-                var c = .{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 };
-
-                var draw_angle = TAU - angle;
-
-                rl.DrawLineV(c, utils.add_v2(c, .{ .x = 10 }), consts.pico_sea);
-
-                rl.DrawCircleSectorLines(c, 5.0, 90, 360 + 90 - (draw_angle * 360 / TAU), 8, consts.pico_sea);
-                var angle_delta_anticlockwise = utils.min_distance_between_angles_clockwise(draw_angle, 0);
-                var text_angle = -0.5 * utils.normalize_angle(angle_delta_anticlockwise);
-                var text_pos = utils.sub_v2(utils.add_v2(c, utils.scaled_from_angle(text_angle, 13)), .{ .x = 3, .y = 5 });
-                fonts.g_linssen.draw_text(0, "a", text_pos.x, text_pos.y, consts.pico_black);
-
-                const r_base = 64;
-                const r_vary = 8;
-                var p = utils.add_v2(c, utils.scaled_from_angle(draw_angle, r_base));
-
-                utils.draw_broken_line(c, p, 1.0, 1.0, consts.pico_blue);
-
-                var prev: rl.Vector2 = .{};
-                const k = 64;
-                var one_last_draw = false;
-                for (0..k) |i| {
-                    if (one_last_draw) {
-                        break;
-                    }
-
-                    var i_n = @as(f32, @floatFromInt(i)) / k;
-                    var a = TAU * i_n;
-                    if (a > angle) {
-                        a = angle;
-                        one_last_draw = true;
-                    }
-
-                    var draw_a = TAU - a;
-
-                    const sample = 0;
-                    var pp = utils.add_v2(c, utils.scaled_from_angle(draw_a, r_base + r_vary * sample));
-
-                    if (i != 0) {
-                        rl.DrawLineV(prev, pp, consts.pico_blue);
-                    }
-
-                    utils.draw_circle_lines(pp, 1.0, consts.pico_sea);
-
-                    prev = pp;
-                }
-
-                var midpoint = utils.scale_v2(0.5, utils.add_v2(prev, c));
-                fonts.g_linssen.draw_text(0, "r", midpoint.x, midpoint.y - 10, consts.pico_black);
-
-                fonts.g_linssen.draw_text(0, "sample(a) = r", 120, 220, consts.pico_black);
-
-                if (clicked) {
-                    self.change_scene(.{
-                        .BadOne_Intro = .{
-                            .t = 0,
-                        },
-                    });
-                }
-            },
-            .BadOne_Intro => |*x| {
+            .Simple_ApproachIntro => |*x| {
                 x.t += 1;
-                sprites.draw_blob_text_small("variations in surface", .{ .x = 100, .y = 100 });
+                sprites.draw_blob_text_small("Simple approach", .{ .x = 100, .y = 100 });
 
                 if (clicked) {
                     self.change_scene(.{
-                        .BadOne_Samples = .{
+                        .Simple_Samples = .{
                             .t = 0,
                             .perlin = .{},
                         },
                     });
                 }
             },
-            .BadOne_Samples => |*x| {
+            .Simple_Samples => |*x| {
                 x.t += 1;
                 x.perlin.tick();
                 x.perlin.draw();
@@ -513,14 +516,14 @@ pub const Slideshow = struct {
 
                 if (clicked) {
                     self.change_scene(.{
-                        .BadOne_JoiningUpLines = .{
+                        .Simple_JoiningUpLines = .{
                             .t = 0,
                         },
                     });
                 }
             },
 
-            .BadOne_JoiningUpLines => |*state| {
+            .Simple_JoiningUpLines => |*state| {
                 state.t += 1;
 
                 var angle = @as(f32, @floatFromInt(state.t)) * 0.01;
@@ -710,12 +713,51 @@ pub const Slideshow = struct {
                 fonts.g_linssen.draw_text(0, "sum the layers together", 100, 215, consts.pico_black);
 
                 if (clicked) {
-                    self.change_scene(.{ .Trick1 = .{ .t = 0 } });
+                    self.change_scene(.{ .TrickMakingThingsRound = .{ .t = 0 } });
                 }
             },
-            .Trick1 => |*x| {
+            .TrickMakingThingsRound => |*x| {
                 x.t += 1;
-                sprites.draw_blob_text("trick one", .{ .x = 100, .y = 100 });
+                //sprites.draw_blob_text("trick one", .{ .x = 100, .y = 100 });
+                var styling = Styling{
+                    .color = consts.pico_black,
+                    .wavy = true,
+                };
+                var font_state = fonts.DrawTextState{};
+                fonts.g_linssen.draw_text_state(x.t, "(making things round)", 90, 130, styling, &font_state);
+
+                if (clicked) {
+                    //var perlins = make_three_perlins();
+                    //perlins[0].y0 = consts.screen_height_f * 0.5;
+                    //perlins[1].y0 = consts.screen_height_f * 0.5;
+                    //perlins[2].y0 = consts.screen_height_f * 0.5;
+
+                    //self.scene = .{
+                    //    .WrapStatic = .{
+                    //        .t = 0,
+                    //        .perlin = .{
+                    //            .perlins = perlins,
+                    //        },
+                    //    },
+                    //};
+                    g_shader_noise_dump = 0.5;
+                    g_screenshake = 1.0;
+
+                    var landscapes = make_landscapes();
+
+                    self.change_scene(.{
+                        .WrapStatic = .{
+                            .t = 0,
+                            .perlin = .{
+                                .landscapes = landscapes,
+                            },
+                        },
+                    });
+                }
+            },
+            .TrickMakingThingsMove => |*x| {
+                x.t += 1;
+                sprites.draw_blob_text("Oscillators", .{ .x = 100, .y = 100 });
                 var styling = Styling{
                     .color = consts.pico_black,
                     .wavy = true,
@@ -1157,79 +1199,50 @@ pub const Slideshow = struct {
                 }
 
                 if (clicked) {
-                    self.change_scene(.{ .Trick2 = .{ .t = 0 } });
-                }
-            },
-            .Trick2 => |*x| {
-                x.t += 1;
-                sprites.draw_blob_text("trick two", .{ .x = 100, .y = 100 });
-                var styling = Styling{
-                    .color = consts.pico_black,
-                    .wavy = true,
-                };
-                var font_state = fonts.DrawTextState{};
-                fonts.g_linssen.draw_text_state(x.t, "(making things round)", 90, 130, styling, &font_state);
-
-                if (clicked) {
-                    //var perlins = make_three_perlins();
-                    //perlins[0].y0 = consts.screen_height_f * 0.5;
-                    //perlins[1].y0 = consts.screen_height_f * 0.5;
-                    //perlins[2].y0 = consts.screen_height_f * 0.5;
-
-                    //self.scene = .{
-                    //    .WrapStatic = .{
-                    //        .t = 0,
-                    //        .perlin = .{
-                    //            .perlins = perlins,
-                    //        },
-                    //    },
-                    //};
-                    g_shader_noise_dump = 0.5;
-                    g_screenshake = 1.0;
-
-                    var rand = FroggyRand.init(1);
-                    var landscapes = alloc.gpa.allocator().alloc(perlin.Landscape, 3) catch unreachable;
-                    var r: f32 = 18;
-                    landscapes[0] = .{
-                        .y0 = consts.screen_height_f * 0.2,
-                        .point_col = consts.pico_red,
-                        .r = r,
-                    };
-
-                    var offsets_1 = alloc.gpa.allocator().alloc(f32, 5) catch unreachable;
-                    for (0..5) |i| {
-                        offsets_1[i] = rand.gen_angle(.{ 0, i });
-                    }
-
-                    landscapes[1] = .{
-                        .offsets = offsets_1,
-                        .y0 = consts.screen_height_f * 0.5,
-                        .r = r * 0.5,
-                    };
-
-                    var offsets_2 = alloc.gpa.allocator().alloc(f32, 9) catch unreachable;
-                    for (0..9) |i| {
-                        offsets_2[i] = rand.gen_angle(.{ 0, i });
-                    }
-
-                    landscapes[2] = .{
-                        .offsets = offsets_2,
-                        .y0 = consts.screen_height_f * 0.8,
-                        .point_col = consts.pico_green,
-                        .r = r * 0.25,
-                    };
-
-                    self.change_scene(.{
-                        .WrapStatic = .{
-                            .t = 0,
-                            .perlin = .{
-                                .landscapes = landscapes,
-                            },
-                        },
-                    });
+                    self.change_scene(.{ .WrapDynamic = .{ .perlin = .{
+                        .landscapes = make_landscapes(),
+                    }, .t = 0 } });
                 }
             },
             .WrapStatic => |*x| {
+                //const t_merge = 10000;
+                //var perlin_1_and_2 = [2]*AnimatedPerlin{ &x.perlins[1], &x.perlins[2] };
+                //x.perlins[0].draw_merged(&perlin_1_and_2, @min(t_merge, 1.0));
+
+                x.t += 1;
+                //x.perlin.landscapes[0].tick();
+                //x.perlin.landscapes[1].tick();
+                //x.perlin.landscapes[2].tick();
+
+                var tt: f32 = 0;
+
+                if (x.t > 60) {
+                    tt = @as(f32, @floatFromInt(x.t - 60)) * 0.005;
+                    tt = std.math.pow(f32, tt, 1.5);
+                }
+
+                x.perlin.draw(@min(tt, 1.0));
+
+                fonts.g_linssen.draw_text(0, "wrap onto a circle", 70, 210, consts.pico_black);
+                //fonts.g_linssen.draw_text(0, "place oscilators at equal spacing in [0,2pi]", 70, 220, consts.pico_black);
+
+                if (clicked) {
+                    g_screenshake = 0.5;
+                    g_shader_noise_dump = 0.5;
+                    self.change_scene(.{
+                        .TrickMakingThingsMove = .{
+                            .t = 0,
+                        },
+                        //.PlanetSmallLayout = .{
+                        //    .t = 0,
+                        //    .planet = Planet{
+                        //        .world = world.World.new_bad_layout(0, .{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 }, 64, 16),
+                        //    },
+                        //},
+                    });
+                }
+            },
+            .WrapDynamic => |*x| {
                 //const t_merge = 10000;
                 //var perlin_1_and_2 = [2]*AnimatedPerlin{ &x.perlins[1], &x.perlins[2] };
                 //x.perlins[0].draw_merged(&perlin_1_and_2, @min(t_merge, 1.0));
@@ -1447,7 +1460,8 @@ pub fn draw_generator_slam(player_state: *PlayerState, show_arrow: bool, theta: 
 
     var pp = p_dotted_end;
     pp.y -= 20;
-    pp.x -= 10;
+    //pp.x -= 10;
+    pp.x -= 8;
     pp.y += player_state.y_off;
 
     if (show_arrow) {
@@ -1455,11 +1469,12 @@ pub fn draw_generator_slam(player_state: *PlayerState, show_arrow: bool, theta: 
     } else if (player_state.charging) {
         frame = 2;
     } else if (!player_state.jumping) {
-        if (@mod(@divFloor(player_state.t, 6), 2) == 0) {
-            frame = 0;
-        } else {
-            frame = 1;
-        }
+        frame = 4;
+        //if (@mod(@divFloor(player_state.t, 6), 2) == 0) {
+        //    frame = 0;
+        //} else {
+        //    frame = 1;
+        //}
     } else {
         frame = 3;
     }
@@ -1960,3 +1975,39 @@ const FinalSceneState = struct {
         self.player.draw();
     }
 };
+
+fn make_landscapes() []perlin.Landscape {
+    var rand = FroggyRand.init(1);
+    var landscapes = alloc.gpa.allocator().alloc(perlin.Landscape, 3) catch unreachable;
+    var r: f32 = 18;
+    landscapes[0] = .{
+        .y0 = consts.screen_height_f * 0.2,
+        .point_col = consts.pico_red,
+        .r = r,
+    };
+
+    var offsets_1 = alloc.gpa.allocator().alloc(f32, 5) catch unreachable;
+    for (0..5) |i| {
+        offsets_1[i] = rand.gen_angle(.{ 0, i });
+    }
+
+    landscapes[1] = .{
+        .offsets = offsets_1,
+        .y0 = consts.screen_height_f * 0.5,
+        .r = r * 0.5,
+    };
+
+    var offsets_2 = alloc.gpa.allocator().alloc(f32, 9) catch unreachable;
+    for (0..9) |i| {
+        offsets_2[i] = rand.gen_angle(.{ 0, i });
+    }
+
+    landscapes[2] = .{
+        .offsets = offsets_2,
+        .y0 = consts.screen_height_f * 0.8,
+        .point_col = consts.pico_green,
+        .r = r * 0.25,
+    };
+
+    return landscapes;
+}

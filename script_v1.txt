@@ -1,0 +1,144 @@
+I'm going to talk a bit about these planets from my game Crunda 
+They were the first thing I made in development
+Dictated where the rest of the game went
+
+[cut between game sequences]
+
+                    [game objects and the player]
+They wobble and interact with the world, and kind of make the whole experience come alive
+
+
+They are modelled physically with a fairly standard technique but with a couple of changes.
+[cut to maths later]
+
+And if there's anything you can take away from this video, taking standard approaching adding your
+own twist is a really good place to find design ideas.
+[cut to maths later]
+
+
+----------------------
+
+We are going to be talking about perlin noise which is a technique for generating random noise
+We are going to use it to generate natural looking landscapes
+It's something you could lookup in a textbook - or wikipedia
+[film textbook]
+
+Look at that lovely noise
+
+Wait why is this page so bad
+This doesn't explain anything
+Why would you write this if the original version had major differences [citation needed]
+What were the major differences [citation needed]
+
+Oh noooooo
+(scroll to my edit)
+
+
+----------------------
+
+0) End Goal
+
+So I've broken the game down to its simplest building blocks in this mockup
+We have a planet, we have a couple of prop objects attached to it and we have the player 
+I can move around with the arrow keys, I can jump and land back on the planet
+Notice that the there is a kind of impact on the planet when I slam against it
+Also the props are stuck to the surface and sway about with the underlying movement
+I can also release these boulders that slam into the surface which do largely the same thing
+
+1) What do we need
+
+We are going to draw our planets in a series of lines going around in a circle
+We neeed to be able to sample the radius at a given angle
+This will also be useful for if we want to tell if a collision has happened
+[@TODO Do we need a slide showing a collision test?]
+
+For this example we have the simplest expression for the radius - a constant
+
+2) Simple approach lines
+
+We want some variation
+Take a line and form a kind of heightmap
+Sample random points at intervals along a line and linearly interpolate between them - so draw straight lines
+
+Wrap around a circle, base radius and vary radius from these
+But you end up with something very spiky
+
+
+3) Perlin is Octaves
+
+Multiple octaves
+With every higher octave doubling the frequency halving the amplitude
+Idea is to combine them, global shapes from lower octaves
+Level of detail from higher octaves
+Mirror life you zoom in and theres more detail but at smaller scales
+
+we can combine them by laying them over each other and summing over them
+again linearly interpolating points.
+
+So this looks a lot better, more natural
+
+---
+cut to perlin forehead
+---
+
+We take our layered perlin samples and wrap them around the edge of a circle
+We can iron out the ugly branch cut here later
+
+--
+cut to octaves in picosynth
+--
+
+5) Making things move
+
+We want the surface to move under the player
+Here we have a simple oscillator moving forward with time drawing out a sine wave
+
+I can jump like this and what we want is for our landing to impact the ground
+In the game we call this "slamming". So if I land here we want to shift the terrain downwards with my impact 
+So we want to shunt the oscillator backwards or forwards in time
+
+
+
+We want to take a bunch of these sin waves and combine them together for our planet surface
+I won't bore you but a cool maths fact is that if we stack mutltiple sine waves with the same
+[Maths fact]
+frequency but different offests you produce anotherr sine wave
+
+Not obvious
+
+[Maths fact this isn't a proof]
+Some kind of an intuition from this view laying them tip to toe
+All rotating around together
+
+View from before but mapped the innermost to arrow keys
+As I change this innermost oscilator the overall structure changes but we still get another sine wave
+Use this fact to blend between sine waves.
+
+
+
+---
+
+Going back to something similar to the random offsets before
+Instead of sampling a random number we are going to sample a random angle
+With time paused we have the same thing
+
+As I start moving time forward you can see that the interpolation between points gives us this nice
+moving structure.
+#I've drawn these as circles but you can think of these as individual points
+
+-- 
+choo choo
+steam train
+--
+
+
+
+In this view I've put multiple octaves together 
+So we can see that by combining the two approaches we get this nice moving landscape
+At each individual x coordinate on the line, because of what we were looking at before, are acting
+individually as a sine wave
+
+
+---
+cut to octaves in picosynth
+---
