@@ -18,12 +18,20 @@ own twist is a really good place to find design ideas.
 
 ----------------------
 
-We are going to be talking about perlin noise which is a technique for generating random noise
-We are going to use it to generate natural looking landscapes
-It's something you could lookup in a textbook - or wikipedia
-[film textbook]
+We are going to be talking about perlin noise and octaves which are a standard set of techniques for generating
+[images of landscapes]
+natural looking landscapes
 
-Look at that lovely noise
+[film textbook]
+It's something you could lookup in a textbook 
+Shoutout to Adam Miller
+Look at this beautiful noise
+and a free cd
+
+
+
+Or wikipedia
+[show page]
 
 Wait why is this page so bad
 This doesn't explain anything
@@ -52,7 +60,7 @@ We neeed to be able to sample the radius at a given angle
 This will also be useful for if we want to tell if a collision has happened
 [@TODO Do we need a slide showing a collision test?]
 
-For this example we have the simplest expression for the radius - a constant
+For this example we have the simplest expression for the radius - a constant giving us a circle
 
 2) Simple approach lines
 
@@ -64,7 +72,11 @@ Wrap around a circle, base radius and vary radius from these
 But you end up with something very spiky
 
 
-3) Perlin is Octaves
+3) Octaves
+--
+cut to octaves in picosynth
+--
+
 
 Multiple octaves
 With every higher octave doubling the frequency halving the amplitude
@@ -81,12 +93,8 @@ So this looks a lot better, more natural
 cut to perlin forehead
 ---
 
-We take our layered perlin samples and wrap them around the edge of a circle
+We take our layered samples and wrap them around the edge of a circle
 We can iron out the ugly branch cut here later
-
---
-cut to octaves in picosynth
---
 
 5) Making things move
 
