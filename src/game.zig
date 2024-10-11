@@ -612,7 +612,7 @@ pub const Slideshow = struct {
             },
             .Perlin_Intro => |*state| {
                 state.t += 1;
-                sprites.draw_blob_text("perlin", .{ .x = 100, .y = 100 });
+                sprites.draw_blob_text("octave", .{ .x = 100, .y = 100 });
 
                 if (clicked) {
                     self.change_scene(.{
