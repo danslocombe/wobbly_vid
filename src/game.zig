@@ -201,19 +201,19 @@ pub const Scene = union(enum) {
     WhatDoWeWant: struct { t: i32 },
     //SimplestSolutionTitle: struct { t: i32 },
     RadarScanning: struct { t: i32 },
-    JoiningUpLines: struct { t: i32 },
+    DrawingAPlanet: struct { t: i32 },
     Simple_ApproachIntro: struct { t: i32 },
     Simple_Samples: struct { t: i32, perlin: perlin.AnimatedPerlin },
-    Simple_JoiningUpLines: struct {
-        t: i32,
-        r_vary_pos_lerped: rl.Vector2 = .{},
-    },
-    Perlin_Intro: struct { t: i32 },
+    Octaves_Intro: struct { t: i32 },
     SinglePerlin: struct { t: i32, perlin: perlin.AnimatedPerlin },
     PerlinOctaves: struct { t: i32, perlins: [3]perlin.AnimatedPerlin },
     MergedPerlin: struct { t: i32, perlins: [3]perlin.AnimatedPerlin },
 
     TrickMakingThingsRound: struct { t: i32 },
+    SpikyWrappedToPlanet: struct {
+        t: i32,
+        r_vary_pos_lerped: rl.Vector2 = .{},
+    },
     WrapStatic: struct { t: i32, perlin: perlin.CircularMappingPerlin },
 
     TrickMakingThingsMove: struct { t: i32 },
@@ -334,11 +334,11 @@ pub const Slideshow = struct {
             },
             .WhatDoWeWant => |*x| {
                 x.t += 1;
-                sprites.draw_blob_text_small("what do we need", .{ .x = 100, .y = 100 });
+                sprites.draw_blob_text_small("Drawing a planet", .{ .x = 100, .y = 100 });
 
                 if (clicked) {
                     self.change_scene(.{
-                        .JoiningUpLines = .{
+                        .DrawingAPlanet = .{
                             .t = 0,
                         },
                     });
@@ -349,13 +349,13 @@ pub const Slideshow = struct {
             //    sprites.draw_blob_text_small("simplest solution", .{ .x = 100, .y = 100 });
             //    if (clicked) {
             //        self.change_scene(.{
-            //            .JoiningUpLines = .{
+            //            .DrawingAPlanet = .{
             //                .t = 0,
             //            },
             //        });
             //    }
             //},
-            .JoiningUpLines => |*state| {
+            .DrawingAPlanet => |*state| {
                 state.t += 1;
 
                 var angle = @as(f32, @floatFromInt(state.t)) * 0.025;
@@ -496,7 +496,13 @@ pub const Slideshow = struct {
             },
             .Simple_ApproachIntro => |*x| {
                 x.t += 1;
-                sprites.draw_blob_text_small("Simple approach", .{ .x = 100, .y = 100 });
+                sprites.draw_blob_text_small("Starting Flat", .{ .x = 100, .y = 100 });
+                var styling = Styling{
+                    .color = consts.pico_black,
+                    //.wavy = true,
+                };
+                var font_state = fonts.DrawTextState{};
+                fonts.g_linssen.draw_text_state(x.t, "(starting simple with perlin)", 90, 130, styling, &font_state);
 
                 if (clicked) {
                     self.change_scene(.{
@@ -514,105 +520,24 @@ pub const Slideshow = struct {
 
                 fonts.g_linssen.draw_text(0, "sample random points in [-1,1]", 80, 220, consts.pico_black);
 
+                //if (clicked) {
+                //    self.change_scene(.{
+                //        .SpikyWrappedToPlanet = .{
+                //            .t = 0,
+                //        },
+                //    });
+                //}
                 if (clicked) {
                     self.change_scene(.{
-                        .Simple_JoiningUpLines = .{
+                        .Octaves_Intro = .{
                             .t = 0,
                         },
                     });
                 }
             },
-
-            .Simple_JoiningUpLines => |*state| {
+            .Octaves_Intro => |*state| {
                 state.t += 1;
-
-                var angle = @as(f32, @floatFromInt(state.t)) * 0.01;
-                angle = @min(TAU, angle);
-
-                var c = .{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 };
-
-                var draw_angle = TAU - angle;
-
-                rl.DrawLineV(c, utils.add_v2(c, .{ .x = 10 }), consts.pico_sea);
-
-                rl.DrawCircleSectorLines(c, 5.0, 90, 360 + 90 - (draw_angle * 360 / TAU), 8, consts.pico_sea);
-                var angle_delta_anticlockwise = utils.min_distance_between_angles_clockwise(draw_angle, 0);
-                var text_angle = -0.5 * utils.normalize_angle(angle_delta_anticlockwise);
-                var text_pos = utils.sub_v2(utils.add_v2(c, utils.scaled_from_angle(text_angle, 13)), .{ .x = 3, .y = 5 });
-                fonts.g_linssen.draw_text(0, "a", text_pos.x, text_pos.y, consts.pico_black);
-
-                const r_base = 64;
-                const r_vary = 16;
-
-                var rand = FroggyRand.init(0);
-
-                var prev: rl.Vector2 = .{};
-                var prev_c: rl.Vector2 = .{};
-                const k = 32;
-                var one_last_draw = false;
-                for (0..(k + 1)) |p_i| {
-                    var i = @mod(p_i, k);
-
-                    if (one_last_draw) {
-                        break;
-                    }
-
-                    var i_n = @as(f32, @floatFromInt(i)) / k;
-                    var a = TAU * i_n;
-                    if (a > angle) {
-                        a = angle;
-                        one_last_draw = true;
-                    }
-
-                    var draw_a = TAU - a;
-
-                    const sample = rand.gen_f32_one_minus_one(i);
-                    var pp = utils.add_v2(c, utils.scaled_from_angle(draw_a, r_base + r_vary * sample));
-
-                    var p_c = utils.add_v2(c, utils.scaled_from_angle(draw_a, r_base));
-
-                    if (p_i != 0) {
-                        rl.DrawLineV(prev, pp, consts.pico_blue);
-                        utils.draw_broken_line(p_c, prev_c, 1.0, 1.0, consts.pico_blue);
-                    }
-
-                    utils.draw_circle_lines(pp, 1.0, consts.pico_sea);
-
-                    prev = pp;
-                    prev_c = p_c;
-                }
-
-                var p_base = utils.add_v2(c, utils.scaled_from_angle(-angle, r_base));
-                //var midpoint_base = utils.scale_v2(0.5, utils.add_v2(p_base, c));
-                var midpoint_base = utils.straight_lerp_v2(c, p_base, 0.4);
-
-                var midpoint_vary = utils.scale_v2(0.5, utils.add_v2(p_base, prev));
-                if (state.r_vary_pos_lerped.x == 0 and state.r_vary_pos_lerped.y == 0) {
-                    state.r_vary_pos_lerped = midpoint_vary;
-                }
-                state.r_vary_pos_lerped = utils.dan_lerp_v2(state.r_vary_pos_lerped, midpoint_vary, 20);
-
-                //var p = utils.add_v2(c, utils.scaled_from_angle(draw_angle, r_base));
-                //utils.draw_broken_line(c, p, 1.0, 1.0, consts.pico_blue);
-                utils.draw_broken_line(c, p_base, 1.0, 1.0, consts.pico_green);
-                utils.draw_broken_line(p_base, prev, 1.0, 1.0, consts.pico_red);
-
-                fonts.g_linssen.draw_text(0, "r_base", midpoint_base.x, midpoint_base.y - 10, consts.pico_green);
-                fonts.g_linssen.draw_text(0, "r_vary", state.r_vary_pos_lerped.x, state.r_vary_pos_lerped.y - 10, consts.pico_red);
-
-                fonts.g_linssen.draw_text(0, "sample(a) = r_base + r_vary", 120, 220, consts.pico_black);
-
-                if (clicked) {
-                    self.change_scene(.{
-                        .Perlin_Intro = .{
-                            .t = 0,
-                        },
-                    });
-                }
-            },
-            .Perlin_Intro => |*state| {
-                state.t += 1;
-                sprites.draw_blob_text("octave", .{ .x = 100, .y = 100 });
+                sprites.draw_blob_text("octaves", .{ .x = 100, .y = 100 });
 
                 if (clicked) {
                     self.change_scene(.{
@@ -718,7 +643,7 @@ pub const Slideshow = struct {
             },
             .TrickMakingThingsRound => |*x| {
                 x.t += 1;
-                //sprites.draw_blob_text("trick one", .{ .x = 100, .y = 100 });
+                sprites.draw_blob_text("trick one", .{ .x = 100, .y = 100 });
                 var styling = Styling{
                     .color = consts.pico_black,
                     .wavy = true,
@@ -744,12 +669,99 @@ pub const Slideshow = struct {
                     g_screenshake = 1.0;
 
                     var landscapes = make_landscapes();
+                    _ = landscapes;
+                    self.change_scene(.{
+                        .SpikyWrappedToPlanet = .{
+                            .t = 0,
+                        },
+                    });
+                }
+            },
+            .SpikyWrappedToPlanet => |*state| {
+                state.t += 1;
 
+                var angle = @as(f32, @floatFromInt(state.t)) * 0.01;
+                angle = @min(TAU, angle);
+
+                var c = .{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 };
+
+                var draw_angle = TAU - angle;
+
+                rl.DrawLineV(c, utils.add_v2(c, .{ .x = 10 }), consts.pico_sea);
+
+                rl.DrawCircleSectorLines(c, 5.0, 90, 360 + 90 - (draw_angle * 360 / TAU), 8, consts.pico_sea);
+                var angle_delta_anticlockwise = utils.min_distance_between_angles_clockwise(draw_angle, 0);
+                var text_angle = -0.5 * utils.normalize_angle(angle_delta_anticlockwise);
+                var text_pos = utils.sub_v2(utils.add_v2(c, utils.scaled_from_angle(text_angle, 13)), .{ .x = 3, .y = 5 });
+                fonts.g_linssen.draw_text(0, "a", text_pos.x, text_pos.y, consts.pico_black);
+
+                const r_base = 64;
+                const r_vary = 16;
+
+                var rand = FroggyRand.init(0);
+
+                var prev: rl.Vector2 = .{};
+                var prev_c: rl.Vector2 = .{};
+                const k = 32;
+                var one_last_draw = false;
+                for (0..(k + 1)) |p_i| {
+                    var i = @mod(p_i, k);
+
+                    if (one_last_draw) {
+                        break;
+                    }
+
+                    var i_n = @as(f32, @floatFromInt(i)) / k;
+                    var a = TAU * i_n;
+                    if (a > angle) {
+                        a = angle;
+                        one_last_draw = true;
+                    }
+
+                    var draw_a = TAU - a;
+
+                    const sample = rand.gen_f32_one_minus_one(i);
+                    var pp = utils.add_v2(c, utils.scaled_from_angle(draw_a, r_base + r_vary * sample));
+
+                    var p_c = utils.add_v2(c, utils.scaled_from_angle(draw_a, r_base));
+
+                    if (p_i != 0) {
+                        rl.DrawLineV(prev, pp, consts.pico_blue);
+                        utils.draw_broken_line(p_c, prev_c, 1.0, 1.0, consts.pico_blue);
+                    }
+
+                    utils.draw_circle_lines(pp, 1.0, consts.pico_sea);
+
+                    prev = pp;
+                    prev_c = p_c;
+                }
+
+                var p_base = utils.add_v2(c, utils.scaled_from_angle(-angle, r_base));
+                //var midpoint_base = utils.scale_v2(0.5, utils.add_v2(p_base, c));
+                var midpoint_base = utils.straight_lerp_v2(c, p_base, 0.4);
+
+                var midpoint_vary = utils.scale_v2(0.5, utils.add_v2(p_base, prev));
+                if (state.r_vary_pos_lerped.x == 0 and state.r_vary_pos_lerped.y == 0) {
+                    state.r_vary_pos_lerped = midpoint_vary;
+                }
+                state.r_vary_pos_lerped = utils.dan_lerp_v2(state.r_vary_pos_lerped, midpoint_vary, 20);
+
+                //var p = utils.add_v2(c, utils.scaled_from_angle(draw_angle, r_base));
+                //utils.draw_broken_line(c, p, 1.0, 1.0, consts.pico_blue);
+                utils.draw_broken_line(c, p_base, 1.0, 1.0, consts.pico_green);
+                utils.draw_broken_line(p_base, prev, 1.0, 1.0, consts.pico_red);
+
+                fonts.g_linssen.draw_text(0, "r_base", midpoint_base.x, midpoint_base.y - 10, consts.pico_green);
+                fonts.g_linssen.draw_text(0, "r_vary", state.r_vary_pos_lerped.x, state.r_vary_pos_lerped.y - 10, consts.pico_red);
+
+                fonts.g_linssen.draw_text(0, "sample(a) = r_base + r_vary", 120, 220, consts.pico_black);
+
+                if (clicked) {
                     self.change_scene(.{
                         .WrapStatic = .{
                             .t = 0,
                             .perlin = .{
-                                .landscapes = landscapes,
+                                .landscapes = make_landscapes(),
                             },
                         },
                     });
@@ -757,7 +769,7 @@ pub const Slideshow = struct {
             },
             .TrickMakingThingsMove => |*x| {
                 x.t += 1;
-                sprites.draw_blob_text("Oscillators", .{ .x = 100, .y = 100 });
+                sprites.draw_blob_text("trick two", .{ .x = 100, .y = 100 });
                 var styling = Styling{
                     .color = consts.pico_black,
                     .wavy = true,
@@ -1469,12 +1481,12 @@ pub fn draw_generator_slam(player_state: *PlayerState, show_arrow: bool, theta: 
     } else if (player_state.charging) {
         frame = 2;
     } else if (!player_state.jumping) {
-        frame = 4;
-        //if (@mod(@divFloor(player_state.t, 6), 2) == 0) {
-        //    frame = 0;
-        //} else {
-        //    frame = 1;
-        //}
+        //frame = 4;
+        if (@mod(@divFloor(player_state.t, 6), 2) == 0) {
+            frame = 0;
+        } else {
+            frame = 1;
+        }
     } else {
         frame = 3;
     }

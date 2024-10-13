@@ -45,6 +45,8 @@ Trick Two
     Interact with player
 
 
+Discussion on interpolation / different osc patterns
+
 
 
 ---------------------------------
@@ -106,24 +108,24 @@ Notice that the there is a kind of impact on the planet when I slam against it
 Also the props are stuck to the surface and sway about with the underlying movement
 I can also release these boulders that slam into the surface which do largely the same thing
 
-1) What do we need
+1) Rendering Planets
 
 We are going to draw our planets in a series of lines going around in a circle
 We neeed to be able to sample the radius at a given angle
 This will also be useful for if we want to tell if a collision has happened
-[@TODO Do we need a slide showing a collision test?]
+    [@TODO Do we need a slide showing a collision test?]
 
-For this example we have the simplest expression for the radius - a constant giving us a circle
+The radius will come in two parts, some static part coming from how big we want the planet to be
+and a varying part coming from the landscape of the surface.
+We're going to mostly be talking about how we generate the varying part, for this example the varying part
+is always zero giving us a circle from the constant part.
 
-2) Simple approach lines
+2) Flat Line
 
-We want some variation
-Take a line and form a kind of heightmap
-Sample random points at intervals along a line and linearly interpolate between them - so draw straight lines
-This is a simple technique for forming random 
+Thinking about a simpler problem, how do we want to form the height on a flat line
+Sample random points at intervals along a line and some how join them up so draw straight lines
+For now we are using straight lines or linear interpolation but we can talk some more about that later
 
-Wrap around a circle, base radius and vary radius from these
-But you end up with something very spiky
 
 
 3) Octaves
