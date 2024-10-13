@@ -1,3 +1,56 @@
+Structure:
+
+Intro
+    Gameplay
+    Book
+    Wikipedia
+
+End Goal
+    Breakdown of game
+
+Rendering planets
+    Way to sample a radius
+    How do we determine radius at angle?
+
+Simplify problem of heightmap on flat line
+Standard noise techniques
+
+Sample points, linearly interpolate
+    Cosine interpolation makes rounder - talk more later
+
+Octaves, blending octaves
+
+Trick One
+ (Wrapping around circle)
+
+    Single octave animation
+    Wrapping animation
+
+Trick Two
+  (making things move)
+
+    Surface to move smoothly
+    Oscilator
+
+    Every point move smoothly
+    Maths fact
+
+
+    Oscillators instead of samples before
+
+    Merging octaves
+
+    Wrapping
+
+    Interact with player
+
+
+
+
+---------------------------------
+
+
+
 I'm going to talk a bit about these planets from my game Crunda 
 They were the first thing I made in development
 Dictated where the rest of the game went
@@ -18,7 +71,7 @@ own twist is a really good place to find design ideas.
 
 ----------------------
 
-We are going to be talking about perlin noise and octaves which are a standard set of techniques for generating
+We are going to be talking about perlin noise and octaves of noise which are a standard set of techniques for generating
 [images of landscapes]
 natural looking landscapes
 
@@ -67,6 +120,7 @@ For this example we have the simplest expression for the radius - a constant giv
 We want some variation
 Take a line and form a kind of heightmap
 Sample random points at intervals along a line and linearly interpolate between them - so draw straight lines
+This is a simple technique for forming random 
 
 Wrap around a circle, base radius and vary radius from these
 But you end up with something very spiky

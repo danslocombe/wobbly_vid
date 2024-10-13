@@ -83,6 +83,11 @@ pub fn straight_lerp_v2(p0: rl.Vector2, p1: rl.Vector2, t: f32) rl.Vector2 {
     };
 }
 
+pub fn cosine_interp(x0: f32, x1: f32, t: f32) f32 {
+    var mu = 0.5 * (1 - std.math.cos(t * 3.141));
+    return straight_lerp(x0, x1, mu);
+}
+
 pub const FrameBufferToScreenInfo = struct {
     mouse_x: i32,
     mouse_y: i32,

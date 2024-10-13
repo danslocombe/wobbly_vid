@@ -1184,7 +1184,7 @@ pub const Slideshow = struct {
                     for (state.landscapes) |*landscape| {
                         landscape.draw();
                     }
-                } else if (state.t < 600) {
+                } else if (state.t < 500) {
                     var xx = [_]*perlin.Landscape{&state.landscapes[1]};
                     state.landscapes[0].draw();
                     state.landscapes[1].draw();
@@ -1980,7 +1980,14 @@ fn make_landscapes() []perlin.Landscape {
     var rand = FroggyRand.init(1);
     var landscapes = alloc.gpa.allocator().alloc(perlin.Landscape, 3) catch unreachable;
     var r: f32 = 18;
+
+    var offsets_0 = alloc.gpa.allocator().alloc(f32, 4) catch unreachable;
+    for (0..4) |i| {
+        offsets_0[i] = rand.gen_angle(.{ 0, @mod(i, 3) });
+    }
+
     landscapes[0] = .{
+        .offsets = offsets_0,
         .y0 = consts.screen_height_f * 0.2,
         .point_col = consts.pico_red,
         .r = r,
@@ -1988,7 +1995,7 @@ fn make_landscapes() []perlin.Landscape {
 
     var offsets_1 = alloc.gpa.allocator().alloc(f32, 5) catch unreachable;
     for (0..5) |i| {
-        offsets_1[i] = rand.gen_angle(.{ 0, i });
+        offsets_1[i] = rand.gen_angle(.{ 0, @mod(i, 4) });
     }
 
     landscapes[1] = .{
@@ -1999,7 +2006,7 @@ fn make_landscapes() []perlin.Landscape {
 
     var offsets_2 = alloc.gpa.allocator().alloc(f32, 9) catch unreachable;
     for (0..9) |i| {
-        offsets_2[i] = rand.gen_angle(.{ 0, i });
+        offsets_2[i] = rand.gen_angle(.{ 0, @mod(i, 8) });
     }
 
     landscapes[2] = .{
