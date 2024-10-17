@@ -1,5 +1,7 @@
 Structure:
 
+I need a hook or sub thing
+
 Intro
     Gameplay
     Book
@@ -7,6 +9,8 @@ Intro
 
 End Goal
     Breakdown of game
+        [Normal perlin noise]
+        [How we adapt]
 
 Rendering planets
     Way to sample a radius
@@ -51,6 +55,30 @@ Discussion on interpolation / different osc patterns
 
 ---------------------------------
 
+Hook
+
+Minecraft can remember levels 15 years ago
+-> Interaction of environment
+
+Favourite games are based on physical simulations
+Braid
+Core intersesting things structure game / engine around
+
+--
+
+"Juice"
+Small inputs should have noticable consequences
+Maximising outputs for your inputs
+Screenshake, haptic feedback large over the top animations
+Rewarding players for input
+Truly unique to the artform
+Brushstrokes for paintings, camera angles for films, this for ...
+
+Ways to design the world with as much feedback as possible
+World interacting with the player stomping through
+Walking in a straight line should have feedback
+
+--------------------
 
 
 I'm going to talk a bit about these planets from my game Crunda 
@@ -60,20 +88,20 @@ Dictated where the rest of the game went
 [cut between game sequences]
 
                     [game objects and the player]
-They wobble and interact with the world, and kind of make the whole experience come alive
+They wobble and interact with the player, and kind of make the whole experience come alive
 
 
-They are modelled physically with a fairly standard technique but with a couple of changes.
+They are modelled physically with a fairly standard set of techniques but with a couple of small changes.
 [cut to maths later]
 
-And if there's anything you can take away from this video, taking standard approaching adding your
+And if there's anything you can take away from this video, taking standard techniques adding your
 own twist is a really good place to find design ideas.
 [cut to maths later]
 
 
 ----------------------
 
-We are going to be talking about perlin noise and octaves of noise which are a standard set of techniques for generating
+We are going to be talking about perlin noise and octaves of noise which are used for generating
 [images of landscapes]
 natural looking landscapes
 
@@ -95,6 +123,7 @@ What were the major differences [citation needed]
 
 Oh noooooo
 (scroll to my edit)
+(fades to audio noise)
 
 
 ----------------------
@@ -122,23 +151,29 @@ is always zero giving us a circle from the constant part.
 
 2) Flat Line
 
-Thinking about a simpler problem, how do we want to form the height on a flat line
-Sample random points at intervals along a line and some how join them up so draw straight lines
+# Thinking about a simpler problem, how do we want to form the height on a flat line
+We can start on a simpler problem - how do we form a flat line into an interesting heightmap?
+We first sample random points at intervals along a line and join them up with straight lines
+
 For now we are using straight lines or linear interpolation but we can talk some more about that later
 
+On its own we get this kind of janky shape
 
 
 3) Octaves
 --
 cut to octaves in picosynth
+or this https://www.adultswim.com/etcetera/choir/
 --
 
+So what is typically done, is generating multiple "Octaves"
+They are called octaves because with every higher octave you are doubling the frequency like notes in a musical octave
 
-Multiple octaves
 With every higher octave doubling the frequency halving the amplitude
 Idea is to combine them, global shapes from lower octaves
 Level of detail from higher octaves
 Mirror life you zoom in and theres more detail but at smaller scales
+Why sometimes called "Fractal" noise
 
 we can combine them by laying them over each other and summing over them
 again linearly interpolating points.
@@ -149,19 +184,17 @@ So this looks a lot better, more natural
 cut to perlin forehead
 ---
 
-We take our layered samples and wrap them around the edge of a circle
-We can iron out the ugly branch cut here later
+# We take our layered samples and wrap them around the edge of a circle
+# We can iron out the ugly branch cut here later
 
-5) Making things move
+4) Trick One: Making things round
+
+
+
+5) Trick Two: Making things move
 
 We want the surface to move under the player
 Here we have a simple oscillator moving forward with time drawing out a sine wave
-
-I can jump like this and what we want is for our landing to impact the ground
-In the game we call this "slamming". So if I land here we want to shift the terrain downwards with my impact 
-So we want to shunt the oscillator backwards or forwards in time
-
-
 
 We want to take a bunch of these sin waves and combine them together for our planet surface
 I won't bore you but a cool maths fact is that if we stack mutltiple sine waves with the same
@@ -179,6 +212,10 @@ As I change this innermost oscilator the overall structure changes but we still 
 Use this fact to blend between sine waves.
 
 
+
+I can jump like this and what we want is for our landing to impact the ground
+In the game we call this "slamming". So if I land here we want to shift the terrain downwards with my impact 
+So we want to shunt the oscillator backwards or forwards in time
 
 ---
 
@@ -206,3 +243,9 @@ individually as a sine wave
 ---
 cut to octaves in picosynth
 ---
+
+
+Oiler / Eulor joke
+
+But Dan! I hear you say
+The gentle Dvorak tapping a sweet serenade through the comment box
