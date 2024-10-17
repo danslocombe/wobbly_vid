@@ -29,6 +29,8 @@ pub var g_screenshake: f32 = 0.0;
 
 pub var particle_frames: []rl.Texture = &.{};
 
+pub var g_cursor_visible: bool = false;
+
 pub const Game = struct {
     t: i32 = 0,
 
@@ -63,6 +65,10 @@ pub const Game = struct {
 
         if (rl.IsKeyPressed(rl.KeyboardKey.KEY_R)) {
             // TODO resett
+        }
+
+        if (rl.IsKeyPressed(rl.KeyboardKey.KEY_H)) {
+            g_cursor_visible = !g_cursor_visible;
         }
 
         self.slideshow.tick();
@@ -145,7 +151,9 @@ pub const Game = struct {
 
         self.slideshow.draw();
 
-        sprites.g_sprites.draw_frame("cursor", 0, utils.add_v2(utils.g_mouse_world, .{ .y = 4 }));
+        if (g_cursor_visible) {
+            sprites.g_sprites.draw_frame("cursor", 0, utils.add_v2(utils.g_mouse_world, .{ .y = 4 }));
+        }
 
         camera.End();
     }
@@ -330,11 +338,11 @@ pub const Slideshow = struct {
                     });
                 }
 
-                fonts.g_linssen.draw_text(0, "end goal", 120, 220, consts.pico_black);
+                //fonts.g_linssen.draw_text(0, "end goal", 120, 220, consts.pico_black);
             },
             .WhatDoWeWant => |*x| {
                 x.t += 1;
-                sprites.draw_blob_text_small("Drawing a planet", .{ .x = 100, .y = 100 });
+                sprites.draw_blob_text_small("Drawing a planet", .{ .x = 120, .y = 100 });
 
                 if (clicked) {
                     self.change_scene(.{
@@ -411,7 +419,7 @@ pub const Slideshow = struct {
                 var midpoint = utils.scale_v2(0.5, utils.add_v2(prev, c));
                 fonts.g_linssen.draw_text(0, "r", midpoint.x, midpoint.y - 10, consts.pico_black);
 
-                fonts.g_linssen.draw_text(0, "sample(a) = r", 120, 220, consts.pico_black);
+                fonts.g_linssen.draw_text(0, "sample(a) = r", 120, 200, consts.pico_black);
 
                 if (clicked) {
                     self.change_scene(.{
@@ -484,7 +492,7 @@ pub const Slideshow = struct {
                     prev = pp;
                 }
 
-                fonts.g_linssen.draw_text(0, "what do we want", 120, 220, consts.pico_black);
+                //fonts.g_linssen.draw_text(0, "what do we want", 120, 220, consts.pico_black);
 
                 if (clicked) {
                     self.change_scene(.{
@@ -496,13 +504,13 @@ pub const Slideshow = struct {
             },
             .Simple_ApproachIntro => |*x| {
                 x.t += 1;
-                sprites.draw_blob_text_small("Starting Flat", .{ .x = 100, .y = 100 });
+                sprites.draw_blob_text_small("Starting Flat", .{ .x = 135, .y = 100 });
                 var styling = Styling{
                     .color = consts.pico_black,
                     //.wavy = true,
                 };
                 var font_state = fonts.DrawTextState{};
-                fonts.g_linssen.draw_text_state(x.t, "(starting simple with perlin)", 90, 130, styling, &font_state);
+                fonts.g_linssen.draw_text_state(x.t, "(starting simple with perlin)", 125, 130, styling, &font_state);
 
                 if (clicked) {
                     self.change_scene(.{
@@ -518,7 +526,7 @@ pub const Slideshow = struct {
                 x.perlin.tick();
                 x.perlin.draw();
 
-                fonts.g_linssen.draw_text(0, "sample random points in [-1,1]", 80, 220, consts.pico_black);
+                fonts.g_linssen.draw_text(0, "sample random points in [-1,1]", 80, 200, consts.pico_black);
 
                 //if (clicked) {
                 //    self.change_scene(.{
@@ -537,7 +545,7 @@ pub const Slideshow = struct {
             },
             .Octaves_Intro => |*state| {
                 state.t += 1;
-                sprites.draw_blob_text("octaves", .{ .x = 100, .y = 100 });
+                sprites.draw_blob_text("octaves", .{ .x = 140, .y = 100 });
 
                 if (clicked) {
                     self.change_scene(.{
@@ -643,13 +651,13 @@ pub const Slideshow = struct {
             },
             .TrickMakingThingsRound => |*x| {
                 x.t += 1;
-                sprites.draw_blob_text("trick one", .{ .x = 100, .y = 100 });
+                sprites.draw_blob_text("trick one", .{ .x = 110, .y = 100 });
                 var styling = Styling{
                     .color = consts.pico_black,
                     .wavy = true,
                 };
                 var font_state = fonts.DrawTextState{};
-                fonts.g_linssen.draw_text_state(x.t, "(making things round)", 90, 130, styling, &font_state);
+                fonts.g_linssen.draw_text_state(x.t, "(making things round)", 100, 130, styling, &font_state);
 
                 if (clicked) {
                     //var perlins = make_three_perlins();
@@ -754,7 +762,7 @@ pub const Slideshow = struct {
                 fonts.g_linssen.draw_text(0, "r_base", midpoint_base.x, midpoint_base.y - 10, consts.pico_green);
                 fonts.g_linssen.draw_text(0, "r_vary", state.r_vary_pos_lerped.x, state.r_vary_pos_lerped.y - 10, consts.pico_red);
 
-                fonts.g_linssen.draw_text(0, "sample(a) = r_base + r_vary", 120, 220, consts.pico_black);
+                fonts.g_linssen.draw_text(0, "sample(a) = r_base + r_vary(a)", 120, 220, consts.pico_black);
 
                 if (clicked) {
                     self.change_scene(.{
@@ -769,13 +777,13 @@ pub const Slideshow = struct {
             },
             .TrickMakingThingsMove => |*x| {
                 x.t += 1;
-                sprites.draw_blob_text("trick two", .{ .x = 100, .y = 100 });
+                sprites.draw_blob_text("trick two", .{ .x = 110, .y = 100 });
                 var styling = Styling{
                     .color = consts.pico_black,
                     .wavy = true,
                 };
                 var font_state = fonts.DrawTextState{};
-                fonts.g_linssen.draw_text_state(x.t, "(making things move)", 80, 130, styling, &font_state);
+                fonts.g_linssen.draw_text_state(x.t, "(making things move)", 90, 130, styling, &font_state);
 
                 //if (clicked) {
                 //    self.scene = .{ .IntroOsc = .{ .t = 0 } };
