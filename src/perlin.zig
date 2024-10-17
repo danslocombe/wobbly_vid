@@ -28,8 +28,8 @@ pub const Perlin = struct {
         }
 
         var frac = t_big - before_f;
-        //return utils.straight_lerp(self.points[before_i], self.points[after_i], frac);
-        return utils.cosine_interp(self.points[before_i], self.points[after_i], frac);
+        return utils.straight_lerp(self.points[before_i], self.points[after_i], frac);
+        //return utils.cosine_interp(self.points[before_i], self.points[after_i], frac);
         //return self.points[before_i];
     }
 };
@@ -547,6 +547,6 @@ pub fn interp_sample_closest(x: f32, generators: []const rl.Vector2) f32 {
     var x_before: f32 = generators[prev].x;
 
     var frac = (x - x_before) / (x_next - x_before);
-    //return utils.straight_lerp(generators[prev].y, generators[i].y, frac);
-    return utils.cosine_interp(generators[prev].y, generators[i].y, frac);
+    return utils.straight_lerp(generators[prev].y, generators[i].y, frac);
+    //return utils.cosine_interp(generators[prev].y, generators[i].y, frac);
 }

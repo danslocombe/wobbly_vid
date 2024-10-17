@@ -122,7 +122,8 @@ is always zero giving us a circle from the constant part.
 
 2) Flat Line
 
-Thinking about a simpler problem, how do we want to form the height on a flat line
+Thinking about a simpler problem - how do we want to form the height on a flat line?
+    TO RECORD [This is where perlin comes in ]
 Sample random points at intervals along a line and some how join them up so draw straight lines
 For now we are using straight lines or linear interpolation but we can talk some more about that later
 
