@@ -205,6 +205,7 @@ fn draw_particle_frame_scaled(frame: usize, pos: rl.Vector2, scale_x: f32, scale
 
 pub const Scene = union(enum) {
     Intro: struct { t: i32 },
+    IntroGraph: struct { t: i32 },
     EndGoal: FinalSceneState,
     WhatDoWeWant: struct { t: i32 },
     //SimplestSolutionTitle: struct { t: i32 },
@@ -308,6 +309,113 @@ pub const Slideshow = struct {
                 var font_state = fonts.DrawTextState{};
                 //fonts.g_linssen.draw_text_state(x.t, "rigorous fun!", 30, 210, styling, &font_state);
                 fonts.g_ui.draw_text_state(x.t, "wobly worlds", 80, 130, styling, &font_state);
+
+                if (clicked) {
+                    self.change_scene(.{
+                        .IntroGraph = .{
+                            .t = 0,
+                        },
+                    });
+                }
+            },
+            .IntroGraph => |*state| {
+                state.t += 1;
+                var t_f: f32 = @floatFromInt(state.t);
+                var axis_t = t_f / 80.0;
+
+                var ll = consts.screen_width_f * 0.22;
+
+                var origin_corner: rl.Vector2 =
+                    .{ .x = ll, .y = consts.screen_height_f * 0.8 };
+
+                var top_corner: rl.Vector2 =
+                    .{ .x = ll, .y = consts.screen_height_f * 0.2 };
+
+                var right_corner: rl.Vector2 =
+                    .{ .x = consts.screen_width_f * (1.0 - 0.18), .y = consts.screen_height_f * 0.8 };
+
+                var pow: f32 = 1.0;
+                var pow_t = @max(0.0, @min(1.0, (t_f - 250) / 80));
+                pow = 2.0 - 1.5 * pow_t;
+
+                {
+                    // Axis
+
+                    var p = utils.straight_lerp_v2(origin_corner, top_corner, @min(axis_t, 1.0));
+
+                    rl.DrawLineV(origin_corner, p, consts.pico_blue);
+
+                    p = utils.straight_lerp_v2(origin_corner, right_corner, @min(axis_t, 1.0));
+                    rl.DrawLineV(origin_corner, p, consts.pico_blue);
+
+                    if (axis_t > 1.0) {
+                        var yy = consts.screen_height_f * 0.75;
+                        rl.DrawLineV(.{ .x = ll - 2, .y = yy }, .{ .x = ll + 2, .y = yy }, consts.pico_blue);
+                        fonts.g_linssen.draw_text(state.t, "little feedback", ll - 80, yy - 8, consts.pico_blue);
+
+                        yy = consts.screen_height_f * 0.5;
+                        rl.DrawLineV(.{ .x = ll - 2, .y = yy }, .{ .x = ll + 2, .y = yy }, consts.pico_blue);
+                        var styling = Styling{
+                            .color = consts.pico_blue,
+                            .wavy = pow < 1.5,
+                        };
+                        var font_state = fonts.DrawTextState{};
+                        fonts.g_linssen.draw_text_state(state.t, "some feedback", ll - 80, yy - 8, styling, &font_state);
+
+                        yy = consts.screen_height_f * 0.25;
+                        styling = Styling{
+                            .color = consts.pico_blue,
+                            .wavy = pow < 1.5,
+                            .rainbow = pow < 1.0,
+                        };
+                        font_state = fonts.DrawTextState{};
+                        rl.DrawLineV(.{ .x = ll - 2, .y = yy }, .{ .x = ll + 2, .y = yy }, consts.pico_blue);
+                        fonts.g_linssen.draw_text_state(state.t, "woooowww", ll - 60, yy - 8, styling, &font_state);
+                    }
+
+                    if (axis_t > 1.0) {
+                        var xx = consts.screen_width_f * 0.35;
+                        var yy = consts.screen_height_f * 0.8;
+                        rl.DrawLineV(.{ .x = xx, .y = yy - 2 }, .{ .x = xx, .y = yy + 2 }, consts.pico_blue);
+                        fonts.g_linssen.draw_text(state.t, "small input", xx - 20, yy, consts.pico_blue);
+
+                        xx = consts.screen_width_f * 0.55;
+                        rl.DrawLineV(.{ .x = xx, .y = yy - 2 }, .{ .x = xx, .y = yy + 2 }, consts.pico_blue);
+                        fonts.g_linssen.draw_text(state.t, "medium input", xx - 20, yy, consts.pico_blue);
+
+                        xx = consts.screen_width_f * 0.75;
+                        rl.DrawLineV(.{ .x = xx, .y = yy - 2 }, .{ .x = xx, .y = yy + 2 }, consts.pico_blue);
+                        fonts.g_linssen.draw_text(state.t, "large input", xx - 20, yy, consts.pico_blue);
+                    }
+                }
+
+                var plot_t = @max(0.0, @min(1.0, (t_f - 120) / 80));
+
+                var prev = rl.Vector2{};
+                for (0..64) |i| {
+                    var i_f: f32 = @floatFromInt(i);
+                    var x = i_f / 64;
+                    if (x > plot_t) {
+                        break;
+                    }
+
+                    var y = std.math.pow(f32, x, pow);
+
+                    var p = .{ .x = x, .y = y };
+
+                    var scale_x = right_corner.x - origin_corner.x;
+                    var scale_y = top_corner.y - origin_corner.y;
+                    var p_canvas = utils.add_v2(.{ .x = scale_x * p.x, .y = scale_y * p.y }, origin_corner);
+
+                    if (i != 0) {
+                        rl.DrawCircleLines(@intFromFloat(p_canvas.x), @intFromFloat(p_canvas.y), 1, consts.pico_sea);
+                        rl.DrawLineV(p_canvas, prev, consts.pico_blue);
+                    }
+
+                    prev = p_canvas;
+                }
+
+                //sprites.draw_blob_text("end goal", .{ .x = 100, .y = 100 });
 
                 if (clicked) {
                     g_shader_noise_dump = 0.5;
@@ -1326,11 +1434,7 @@ pub const Slideshow = struct {
                 x.planet.draw();
                 rl.DrawCircleLines(@intFromFloat(x.planet.world.pos.x), @intFromFloat(x.planet.world.pos.y), 1.0, consts.pico_blue);
 
-                if (x.t < 120) {
-                    fonts.g_linssen.draw_text(0, "new interpolation", 70, 210, consts.pico_black);
-                } else {
-                    fonts.g_linssen.draw_text(0, "r = r_0 + r_vary * sample(angle)", 70, 210, consts.pico_black);
-                }
+                fonts.g_linssen.draw_text(0, "new interpolation", 70, 210, consts.pico_black);
 
                 if (clicked) {
                     var new_planet = x.planet;

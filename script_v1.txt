@@ -67,16 +67,37 @@ Core intersesting things structure game / engine around
 --
 
 "Juice"
-Small inputs should have noticable consequences
+Juice in gamedev is used to describe immediate feedback thats given to a player as they perform actions
+#It can be used to suck players into a game and help them feel involved.
+It can be used to suck players into a game and immerse them in the experience
+
+# The idea that your game should be overflowing in juice was first pushed by Dutch philosophers Vlambeer
+# According to Dutch Philosophers Vlambeer "your game should be overflowing in Juice"
+    #[JW - 2010s probably]
+
+#The term was popularised by Dutch Philosophers Vlambeer with their maximalist works in the 2010s  
+The term was popularised by Dutch Philosophers Vlambeer in the 2010s  
+
+# Size heft and tactile feel of game pieces in a board game
+
+Feddback can be visual, audio or haptic
+Usually feedback is scaled to how important the input / action was
+But we can tune this curve
+In a high juice game even small inputs should large amounts of feedback to the player
+
 Maximising outputs for your inputs
 Screenshake, haptic feedback large over the top animations
-Rewarding players for input
+Rewarding players for input, encouraging them to interact
+
 Truly unique to the artform
-Brushstrokes for paintings, camera angles for films, this for ...
+Brushstrokes for paintings, camera angles for films, or pay to win in mobile games - oh I'm making a mobile game
 
 Ways to design the world with as much feedback as possible
 World interacting with the player stomping through
 Walking in a straight line should have feedback
+
+https://www.desmos.com/calculator/tctey7234o
+
 
 --------------------
 
@@ -222,8 +243,11 @@ So we want to shunt the oscillator backwards or forwards in time
 
 ---
 
-Going back to something similar to the random offsets before
-Instead of sampling a random number we are going to sample a random angle
+#Going back to something similar to the random offsets before
+Going back to something similar to the noise we generated before
+Instead of sampling a random number we are going to sample a random angle (or offset)
+
+So we can run the oscillator with the angle and its going to give us a height and we are going to interpolate those heights
 With time paused we have the same thing
 
 As I start moving time forward you can see that the interpolation between points gives us this nice
@@ -248,7 +272,58 @@ cut to octaves in picosynth
 ---
 
 
-Oiler / Eulor joke
+Oiler / Euler joke
+
+Alright so I know what you're thinking
+Tappity tapping on your Dvorak Keyboard into the comment box
 
 But Dan! I hear you say
 The gentle Dvorak tapping a sweet serenade through the comment box
+
+
+---------------
+
+# Lines to record
+
+
+# Lines to fix
+
+    Like brushstrokes in paintuings, or camera angles for film or pay to win in mobile games
+
+    Like brushstrokes in oil painting or cinematography in film or family connections in  ____
+
+    Like brushstrokes in oil painting or cinematography in film or Casual racism in game lobbys
+        feedback requires interactivity
+        
+
+    How to design a world that gives as much feedback as possible
+    A world where walking in a straight line gives feedback
+
+
+
+
+# To Record
+
+Some other gameplay
+
+Talk about octaves or lack of and interpolation
+Talk about placing props
+
+
+# Clips to find
+
+Brushstroke image
+Witness visual tricks
+
+---------------------------------------------
+
+The game wibbly wobbly by the amazing Daniel Linsenn
+exists on an undulating landscape, constantly in motion.
+
+In 2021 I was partipating in Ludum Dare 49, a 48 hour game development competition
+with the theme "Unstable". 
+
+I wanted to 
+
+
+
