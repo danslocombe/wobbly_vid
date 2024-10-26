@@ -49,7 +49,8 @@ pub const Game = struct {
 
         var slideshow = Slideshow{
             .scene = Scene{
-                .Intro = .{ .t = 0 },
+                .InterpolationDiagramFlat = .{ .t = 0 },
+                //.Intro = .{ .t = 0 },
             },
             .undo_stack = std.ArrayList(Scene).init(alloc.gpa.allocator()),
         };
@@ -233,6 +234,8 @@ pub const Scene = union(enum) {
     OscLandscapeSingle: struct { t: i32, playing: bool = false, landscape: perlin.Landscape },
     OscLandscape: struct { t: i32, landscapes: []perlin.Landscape },
     WrapDynamic: struct { t: i32, perlin: perlin.CircularMappingPerlin },
+    InterpolationDiagramFlat: struct { t: i32 },
+    InterpolationDiagramRound: struct { t: i32 },
     PlanetSmallLayout: struct { t: i32, planet: Planet },
     PlanetInterp: struct { t: i32, planet: Planet },
     PlanetPropPos: struct {
@@ -1395,6 +1398,131 @@ pub const Slideshow = struct {
                 if (clicked) {
                     g_screenshake = 0.5;
                     g_shader_noise_dump = 0.5;
+                    self.change_scene(.{
+                        .InterpolationDiagramFlat = .{
+                            .t = 0,
+                        },
+                    });
+                }
+            },
+            .InterpolationDiagramFlat => |*state| {
+                state.t += 1;
+                var t_f: f32 = @floatFromInt(state.t);
+
+                const k = 30;
+
+                var ww = consts.screen_width_f * 0.35;
+                var hh = consts.screen_height_f * 0.3;
+
+                var prev = rl.Vector2{};
+
+                // @Hack to smooth out line drawing transition.
+                var total_dist: f32 = 0.0;
+
+                for (0..256) |i| {
+                    //if (i > @as(usize, @intFromFloat(t_f * 0.85))) {
+                    if (total_dist > t_f * 5) {
+                        break;
+                    }
+
+                    var i_f: f32 = @floatFromInt(i);
+                    var x = 2.0 * ((i_f / 256) - 0.5);
+                    var y = 1.0 / (1.0 + k * std.math.fabs(x));
+
+                    var p = utils.add_v2(.{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 }, .{ .x = x * ww, .y = -y * hh });
+
+                    if (i != 0) {
+                        rl.DrawLineV(p, prev, consts.pico_blue);
+                        total_dist += utils.mag_v2(utils.sub_v2(p, prev));
+                    }
+
+                    prev = p;
+                }
+
+                if (t_f > 50.0) {
+                    var p0 = .{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 };
+                    var p1 = .{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 - hh };
+                    var tt = std.math.clamp((t_f - 50.0) / 20.0, 0.0, 1.0);
+                    var p = utils.straight_lerp_v2(p0, p1, tt);
+                    utils.draw_broken_line(p0, p, 1.0, 2.0, consts.pico_black);
+                    fonts.g_linssen.draw_text(0, "a0", consts.screen_width_f * 0.5 - 5, consts.screen_height_f * 0.5 + 5, consts.pico_blue);
+                }
+
+                if (t_f > 100.0) {
+                    // Indicate a from cursor
+                    var cursor_to_x = (utils.g_mouse_world.x - consts.screen_width_f * 0.5) / ww;
+                    if (cursor_to_x > -1.0 and cursor_to_x < 1.0) {
+                        var y = 1.0 / (1.0 + k * std.math.fabs(cursor_to_x));
+                        var y_world = consts.screen_height_f * 0.5 - y * hh;
+                        var p0 = .{ .x = utils.g_mouse_world.x, .y = consts.screen_height_f * 0.5 };
+                        var p1 = .{ .x = utils.g_mouse_world.x, .y = y_world };
+                        utils.draw_broken_line(p0, p1, 1.0, 2.0, consts.pico_sea);
+                        rl.DrawCircleLines(@intFromFloat(p1.x), @intFromFloat(p1.y), 2, consts.pico_sea);
+
+                        var yyy = consts.screen_height_f * 0.5 + 5 + std.math.sqrt(y) * 20;
+                        fonts.g_linssen.draw_text(0, "a", utils.g_mouse_world.x - 3, yyy, consts.pico_sea);
+                    }
+                }
+
+                fonts.g_linssen.draw_text(0, "weight(a0, a) = 1 / (1 + k | a - a0 |)", 80, 215, consts.pico_black);
+
+                if (clicked) {
+                    g_screenshake = 0.5;
+                    g_shader_noise_dump = 0.5;
+                    self.change_scene(.{
+                        .InterpolationDiagramRound = .{
+                            .t = 0,
+                        },
+                    });
+                }
+            },
+            .InterpolationDiagramRound => |*state| {
+                state.t += 1;
+
+                var t_f: f32 = @floatFromInt(state.t);
+                _ = t_f;
+
+                const k = 30;
+
+                var c = .{ .x = consts.screen_width_f * 0.5, .y = consts.screen_height_f * 0.5 };
+
+                var delta = utils.sub_v2(utils.g_mouse_world, c);
+                var target_angle: f32 = 0.0;
+                if (!utils.close_to_zero(delta)) {
+                    target_angle = std.math.atan2(f32, delta.y, delta.x);
+                }
+
+                target_angle = world.normalize_angle(target_angle);
+                var target_angle_n = target_angle / TAU;
+
+                var angle_delta_anticlockwise = utils.min_distance_between_angles_clockwise(target_angle, 0);
+                var text_angle = -0.5 * utils.normalize_angle(angle_delta_anticlockwise);
+                var text_pos = utils.sub_v2(utils.add_v2(c, utils.scaled_from_angle(text_angle, 13)), .{ .x = 3, .y = 5 });
+                fonts.g_linssen.draw_text(0, "a", text_pos.x, text_pos.y, consts.pico_black);
+
+                rl.DrawLineV(c, utils.add_v2(c, .{ .x = 10 }), consts.pico_sea);
+                rl.DrawCircleSectorLines(c, 5.0, 90, 360 + 90 - (target_angle * 360 / TAU), 8, consts.pico_sea);
+
+                utils.draw_broken_line(c, utils.add_v2(c, utils.scaled_from_angle(target_angle, consts.screen_height_f * (0.3 + 0.1))), 1.0, 2.0, consts.pico_sea);
+
+                var prev = rl.Vector2{};
+                for (0..(256 + 1)) |i| {
+                    var i_f: f32 = @floatFromInt(@mod(i, 256));
+                    var angle_n = i_f / 256;
+                    var angle = angle_n * TAU;
+                    var delta_angle = world.min_dist(angle_n, target_angle_n);
+                    var y = 1.0 / (1.0 + k * std.math.fabs(delta_angle));
+
+                    var p = utils.add_v2(c, utils.scaled_from_angle(angle, consts.screen_height_f * 0.3 + y * consts.screen_height_f * 0.1));
+
+                    if (i != 0) {
+                        rl.DrawLineV(p, prev, consts.pico_blue);
+                    }
+
+                    prev = p;
+                }
+
+                if (clicked) {
                     self.change_scene(.{
                         .PlanetSmallLayout = .{
                             .t = 0,

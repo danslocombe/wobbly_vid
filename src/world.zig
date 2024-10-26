@@ -314,7 +314,7 @@ fn angle_diff(x: f32, y: f32) f32 {
     }
 }
 
-fn min_dist(x: f32, y: f32) f32 {
+pub fn min_dist(x: f32, y: f32) f32 {
     return std.math.fabs(angle_diff(x, y));
 }
 

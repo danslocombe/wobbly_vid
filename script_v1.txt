@@ -304,8 +304,6 @@ The gentle Dvorak tapping a sweet serenade through the comment box
 
 # To Record
 
-Some other gameplay
-
 Talk about octaves or lack of and interpolation
 Talk about placing props
 
@@ -317,13 +315,108 @@ Witness visual tricks
 
 ---------------------------------------------
 
-The game wibbly wobbly by the amazing Daniel Linsenn
-exists on an undulating landscape, constantly in motion.
+# Bridge
 
 In 2021 I was partipating in Ludum Dare 49, a 48 hour game development competition
 with the theme "Unstable". 
 
-I wanted to 
+I had previously seen the game wibbly wobbly by the amazing Daniel Linsenn
+It exists on an undulating landscape, constantly in motion. That gives it this uneasy organic atmosphere.
+
+Ripping this off-
+
+Inspired by this, I wanted to take the idea further where actions by the player could impact the landscape
+(Fundamentally similar to something like minecraft?)
 
 
+--------------------------
 
+# Interpolation
+
+The planets in the game don't follow the octave model we've been talking about
+Instead they use a slightly different approach for interpolation
+
+There is no good reason for this I don't think it is any better, it is just a bit simpler and happens to be the first approach in the game jam
+Instead of interpolating between results we take into consideration all of the oscillators
+Given an angle we assign each oscillators a "weight" based on how far away they from the angle.
+We then use these weights to sum each of the oscillators.
+
+[Do a visualisation]
+
+This does mean that you get some weird artifacts if you don't use enough oscillators.
+You also need to setup the oscillators initially so that the result "looks nice"
+
+The advantage of this approach is for slamming
+When an object collides with a planet we can take this weighting and use it to  
+
+
+-------------------------
+
+Revised Structure:
+
+Intro:
+    Juice in Gamedev
+    Draws players in,
+    Truly unique to games as art form
+
+Bridge:
+    LD49 - Unstable
+    Wibbly wobbly
+    Take one step further
+    Make it come alive
+
+Crunda
+    Gameplay
+    Video of Entry, did quite well
+
+Premise:
+    Talk about maths behind development
+    Taking standard approach adding a twist 
+    Book
+    Wikipedia
+
+End Goal
+    Breakdown of game
+        [Normal perlin noise]
+        [How we adapt]
+
+Rendering planets
+    Way to sample a radius
+    How do we determine radius at angle?
+
+Simplify problem of heightmap on flat line
+Standard noise techniques
+
+Sample points, linearly interpolate
+    Cosine interpolation makes rounder - talk more later
+
+Octaves, blending octaves
+
+Trick One
+ (Wrapping around circle)
+
+    Single octave animation
+    Wrapping animation
+
+Trick Two
+  (making things move)
+
+    Surface to move smoothly
+    Oscilator
+
+    Every point move smoothly
+    Maths fact
+
+
+    Oscillators instead of samples before
+
+    Merging octaves
+
+    Wrapping
+
+    Interact with player
+
+
+Discussion on interpolation / different osc patterns
+
+----------------------------
