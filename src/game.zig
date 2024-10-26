@@ -1522,6 +1522,8 @@ pub const Slideshow = struct {
                     prev = p;
                 }
 
+                fonts.g_linssen.draw_text(0, "contribution at a given angle", 80, 215, consts.pico_black);
+
                 if (clicked) {
                     self.change_scene(.{
                         .PlanetSmallLayout = .{
