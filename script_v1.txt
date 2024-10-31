@@ -317,21 +317,35 @@ Witness visual tricks
 
 # Bridge
 
-In 2021 I was partipating in Ludum Dare 49, a 48 hour game development competition
-with the theme "Unstable". 
+In 2021 I entered Ludum Dare 49, a game dev competition where you have to complete your game in two days
+Hunched over the kitchen table late at night, the theme was announced as "Unstable"
 
-I had previously seen the game wibbly wobbly by the amazing Daniel Linsenn
+I had previously seen the game wibbly wobbly by the amazing Daniel Linsenn (who happens to be a ludum dare celebrity)
 It exists on an undulating landscape, constantly in motion. That gives it this uneasy organic atmosphere.
 
 Ripping this off-
 
 Inspired by this, I wanted to take the idea further where actions by the player could impact the landscape
-(Fundamentally similar to something like minecraft?)
+I ended up with Crunda which turned out to do quite well
+Recently I've gone back to the game, I've been reworking it aiming for a full launch (sooooon)
+I'm going to talk a bit about the planets, they were the first thing I made in development
+Dictated where the rest of the game went
 
+They wobble and interact with the player, and kind of make the whole experience come alive
+
+They are modelled physically with a fairly standard set of techniques but with a couple of small changes.
+[cut to maths later]
+
+And if there's anything you can take away from this video, taking standard techniques adding your
+own twist is a really good place to find design ideas.
+[cut to maths later]
 
 --------------------------
 
 # Interpolation
+Alright so I know what you're thinking
+Tappity tapping on your Dvorak Keyboard into the comment box
+Those planets dont look like they are using octaves, what were you even talking about earlier
 
 The planets in the game don't follow the octave model we've been talking about
 Instead they use a slightly different approach for interpolation
@@ -420,3 +434,13 @@ Trick Two
 Discussion on interpolation / different osc patterns
 
 ----------------------------
+
+Oh wait that one was me -> Oh wait some of that was me
+
+Record about octaves or lack of and interpolation
+Record placing props
+
+
+There are a couple of final things, like how we place props on the planet and rotate them to follow the surface
+But I'm sure you're bored by now
+Go make something!

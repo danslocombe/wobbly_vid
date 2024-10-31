@@ -49,8 +49,8 @@ pub const Game = struct {
 
         var slideshow = Slideshow{
             .scene = Scene{
-                .InterpolationDiagramFlat = .{ .t = 0 },
-                //.Intro = .{ .t = 0 },
+                //.InterpolationDiagramFlat = .{ .t = 0 },
+                .Intro = .{ .t = 0 },
             },
             .undo_stack = std.ArrayList(Scene).init(alloc.gpa.allocator()),
         };
@@ -301,7 +301,18 @@ pub const Slideshow = struct {
             .Intro => |*x| {
                 x.t += 1;
                 //fonts.g_linssen.draw_text(0, "making interesting things boring", 60, 150, consts.pico_black);
-                sprites.draw_blob_text("end goal", .{ .x = 100, .y = 100 });
+                var str = "unstable";
+                var iii = @divFloor(x.t - 500, 2);
+
+                if (iii > 0) {
+                    var i: usize = (std.math.clamp(@as(usize, @intCast(iii)), 0, str.len));
+                    if (i == 1) {
+                        g_screenshake = 0.5;
+                        g_shader_noise_dump = 0.5;
+                    }
+                    var slice = str[0..i];
+                    sprites.draw_blob_text(slice, .{ .x = 150, .y = 100 });
+                }
                 //sprites.draw_blob_text("maths", .{ .x = 100, .y = 100 });
 
                 var styling = Styling{
@@ -309,9 +320,11 @@ pub const Slideshow = struct {
                     .wavy = true,
                     //.rainbow = true,
                 };
+                _ = styling;
                 var font_state = fonts.DrawTextState{};
+                _ = font_state;
                 //fonts.g_linssen.draw_text_state(x.t, "rigorous fun!", 30, 210, styling, &font_state);
-                fonts.g_ui.draw_text_state(x.t, "wobly worlds", 80, 130, styling, &font_state);
+                //fonts.g_ui.draw_text_state(x.t, "wobly worlds", 80, 130, styling, &font_state);
 
                 if (clicked) {
                     self.change_scene(.{
