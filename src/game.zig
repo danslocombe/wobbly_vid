@@ -273,6 +273,7 @@ pub const Slideshow = struct {
     }
 
     pub fn change_scene(self: *Slideshow, new_scene: Scene) void {
+        std.debug.print("Scene name {s}", .{@tagName(new_scene)});
         self.undo_stack.append(self.scene) catch unreachable;
         self.scene = new_scene;
     }
@@ -1302,39 +1303,67 @@ pub const Slideshow = struct {
             },
             .OscLandscape => |*state| {
                 var x = state;
+                var font_state = fonts.DrawTextState{};
+                var styling = Styling{
+                    .color = consts.pico_black,
+                    .wavy = true,
+                };
+                fonts.g_linssen.draw_text_state(x.t, "the physics of", 110, 135, styling, &font_state);
+                sprites.draw_blob_text("Wobbly worlds", .{ .x = 110, .y = 150 });
+
+                //font_state = fonts.DrawTextState{};
+                //styling = Styling{
+                //    .color = consts.pico_black,
+                //    .wavy = true,
+                //};
+                //fonts.g_linssen.draw_text_state(x.t, "(making things round)", 100, 170, styling, &font_state);
+
+                if (x.t == 0) {
+                    x.landscapes[0].y0 = consts.screen_height_f * 0.4;
+                    x.landscapes[0].r *= 1.5;
+                    x.landscapes[0].draw_circles = false;
+                    x.landscapes[1].y0 = consts.screen_height_f * 0.4;
+                    x.landscapes[1].r *= 1.5;
+                    x.landscapes[1].draw_circles = false;
+                    x.landscapes[2].y0 = consts.screen_height_f * 0.4;
+                    x.landscapes[2].r *= 1.5;
+                    x.landscapes[2].draw_circles = false;
+                }
+
                 x.t += 1;
                 for (x.landscapes) |*landscape| {
                     landscape.tick();
                 }
 
-                if (x.t > 180 and x.t < 500) {
-                    x.landscapes[0].draw_circles = false;
-                    x.landscapes[1].draw_circles = false;
+                //if (x.t > 180 and x.t < 500) {
+                //    x.landscapes[0].draw_circles = false;
+                //    x.landscapes[1].draw_circles = false;
 
-                    x.landscapes[0].y0 = utils.dan_lerp(x.landscapes[0].y0, consts.screen_height_f * 0.35, 5.0);
-                    x.landscapes[1].y0 = utils.dan_lerp(x.landscapes[1].y0, x.landscapes[0].y0, 12.0);
-                }
+                //    x.landscapes[0].y0 = utils.dan_lerp(x.landscapes[0].y0, consts.screen_height_f * 0.35, 5.0);
+                //    x.landscapes[1].y0 = utils.dan_lerp(x.landscapes[1].y0, x.landscapes[0].y0, 12.0);
+                //}
 
-                if (x.t > 500 and x.t < 800) {
-                    x.landscapes[0].draw_circles = false;
-                    x.landscapes[1].draw_circles = false;
-                    x.landscapes[2].draw_circles = false;
+                //if (x.t > 500 and x.t < 800) {
+                //    x.landscapes[0].draw_circles = false;
+                //    x.landscapes[1].draw_circles = false;
+                //    x.landscapes[2].draw_circles = false;
 
-                    x.landscapes[0].y0 = utils.dan_lerp(x.landscapes[1].y0, consts.screen_height_f * 0.5, 5.0);
-                    x.landscapes[1].y0 = utils.dan_lerp(x.landscapes[1].y0, x.landscapes[0].y0, 5.0);
-                    x.landscapes[2].y0 = utils.dan_lerp(x.landscapes[2].y0, x.landscapes[0].y0, 12.0);
-                }
-                if (state.t < 180) {
-                    for (state.landscapes) |*landscape| {
-                        landscape.draw();
-                    }
-                } else if (state.t < 500) {
-                    var xx = [_]*perlin.Landscape{&state.landscapes[1]};
-                    state.landscapes[0].draw();
-                    state.landscapes[1].draw();
-                    state.landscapes[0].draw_merged(&xx);
-                    state.landscapes[2].draw();
-                } else {
+                //    x.landscapes[0].y0 = utils.dan_lerp(x.landscapes[1].y0, consts.screen_height_f * 0.5, 5.0);
+                //    x.landscapes[1].y0 = utils.dan_lerp(x.landscapes[1].y0, x.landscapes[0].y0, 5.0);
+                //    x.landscapes[2].y0 = utils.dan_lerp(x.landscapes[2].y0, x.landscapes[0].y0, 12.0);
+                //}
+                //if (state.t < 180) {
+                //    for (state.landscapes) |*landscape| {
+                //        landscape.draw();
+                //    }
+                //} else if (state.t < 500) {
+                //    var xx = [_]*perlin.Landscape{&state.landscapes[1]};
+                //    state.landscapes[0].draw();
+                //    state.landscapes[1].draw();
+                //    state.landscapes[0].draw_merged(&xx);
+                //    state.landscapes[2].draw();
+                //} else {
+                {
                     var xx = [_]*perlin.Landscape{ &state.landscapes[1], &state.landscapes[2] };
                     state.landscapes[0].draw();
                     state.landscapes[1].draw();
